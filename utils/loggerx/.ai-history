@@ -1,0 +1,6 @@
+# AI History
+
+## 2026-02-19
+- Implemented Go `loggerx` with level-based formatting and syslog integration.
+- Added install/uninstall scripts and man page distribution path.
+- Standardized root Makefile build/install/uninstall orchestration.

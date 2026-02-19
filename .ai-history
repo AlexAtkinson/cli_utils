@@ -1,0 +1,8 @@
+# AI History
+
+## 2026-02-19
+- Standardized utility strategy around Go-first CLIs where appropriate.
+- Added root Makefile orchestration for build/install/uninstall across utilities.
+- Added uninstall support for each utility and documented root usage.
+- Introduced Go `fmt-table` project (`utils/fmt-table`) as the preferred implementation.
+- Kept `utils/fmt-table-py` available as a legacy reference.

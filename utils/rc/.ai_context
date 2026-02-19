@@ -1,0 +1,17 @@
+# AI Context (token-disciplined)
+
+Project: Go `rc` result-check utility.
+
+Behavior contract:
+- Compare expected code vs actual code.
+- Emit SUCCESS on match, ERROR on mismatch.
+- Honor `KILL` behavior (exit with actual code when mismatch).
+- Keep shell wrapper compatibility (`rc.sh`).
+
+Dependencies:
+- Prefer `loggerx` output when available, fallback output otherwise.
+
+Token efficiency rules:
+- Keep under ~140 words.
+- Include only active constraints and migration-critical notes.
+- Store design history in `.ai-history`.

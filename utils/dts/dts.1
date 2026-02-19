@@ -1,0 +1,44 @@
+.TH DTS 1 "February 2026" "dts" "User Commands"
+.SH NAME
+dts \- print UTC timestamps in multiple formats
+.SH SYNOPSIS
+.B dts
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B dts
+prints the current UTC timestamp.
+
+By default, output is ISO-8601 style with millisecond precision:
+
+YYYY-MM-DDTHH:MM:SS.mmmZ
+.SH OPTIONS
+.TP
+.B \-f, \-\-file
+Print a filename-safe timestamp format:
+YYYY-MM-DDTHH-MM-SSZ
+.TP
+.B \-s, \-\-seconds
+Print second precision format:
+YYYY-MM-DDTHH:MM:SSZ
+.TP
+.B \-h, \-\-help
+Show help text and exit.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 2
+Invalid arguments or conflicting options.
+.SH EXAMPLES
+.TP
+Default output:
+.B dts
+.TP
+Second precision:
+.B dts \-s
+.TP
+Filename-safe output:
+.B dts \-f
+.SH AUTHOR
+Alex Atkinson and contributors.

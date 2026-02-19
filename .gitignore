@@ -1,0 +1,30 @@
+# ---- Go build artifacts (local utility binaries) ----
+/utils/dts/dts
+/utils/loggerx/loggerx
+/utils/et/et
+/utils/rc/rc
+/utils/fmt-table/fmt-table
+
+# Common Go outputs
+*.test
+*.out
+coverage.out
+
+# ---- Python artifacts ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# ---- Logs / temporary files ----
+*.log
+*.tmp
+*.swp
+*.swo
+
+# ---- OS/editor artifacts ----
+.DS_Store
+.vscode/
+.idea/

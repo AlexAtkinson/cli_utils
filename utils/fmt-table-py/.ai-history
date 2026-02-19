@@ -1,0 +1,5 @@
+# AI History
+
+## 2026-02-19
+- Marked as legacy implementation after introducing Go `utils/fmt-table`.
+- Retained for compatibility/reference; root workflows now target Go project.

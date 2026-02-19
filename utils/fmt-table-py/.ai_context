@@ -1,0 +1,16 @@
+# AI Context (token-disciplined)
+
+Project status: legacy Python `fmt-table` implementation.
+
+Role:
+- Reference behavior source during parity checks.
+- Not the primary target for new feature work.
+
+Guardrails:
+- Keep behavior stable if touched.
+- Avoid broad refactors; prefer changes in Go `utils/fmt-table`.
+
+Token efficiency rules:
+- Keep under ~120 words.
+- Track only legacy-role constraints and maintenance notes.
+- Put historical migration details in `.ai-history`.

@@ -1,0 +1,496 @@
+#!/usr/bin/env python3
+import argparse
+import curses
+import json
+import os
+import shutil
+import sys
+import time
+from pathlib import Path
+
+
+STATE_FILE = Path.home() / ".cache" / "fmt-table" / "state.json"
+REDRAW_CHAIN_WINDOW_SECONDS = 1.0
+
+
+def get_terminal_width(default=80):
+    try:
+        return shutil.get_terminal_size().columns
+    except OSError:
+        return default
+
+
+def parse_row(row_text):
+    return [cell.strip() for cell in row_text.split(",")]
+
+
+def strip_ansi(text):
+    import re
+
+    return re.sub(r"\x1b\[[0-9;]*m", "", str(text))
+
+
+def calculate_column_widths(title_row, content_rows, width_arg):
+    all_rows = ([title_row] if title_row else []) + content_rows
+    max_cols = max((len(row) for row in all_rows), default=0)
+
+    if max_cols == 0:
+        return [10]
+
+    col_widths = [0] * max_cols
+    for row in all_rows:
+        for idx in range(max_cols):
+            cell = row[idx] if idx < len(row) else ""
+            col_widths[idx] = max(col_widths[idx], len(strip_ansi(cell)))
+
+    if width_arg == "equal":
+        max_width = max(col_widths)
+        return [max_width] * max_cols
+
+    if width_arg == "full":
+        total_width = get_terminal_width()
+        content_area = max(total_width - (3 * max_cols + 1), max_cols)
+        base = content_area // max_cols
+        remainder = content_area % max_cols
+        widths = [base] * max_cols
+        for idx in range(remainder):
+            widths[idx] += 1
+        return [max(w, 1) for w in widths]
+
+    if width_arg and width_arg.isdigit():
+        requested = int(width_arg)
+        min_frame = 3 * max_cols + 1
+        content_area = max(requested - min_frame, max_cols)
+        base = content_area // max_cols
+        remainder = content_area % max_cols
+        widths = [base] * max_cols
+        for idx in range(remainder):
+            widths[idx] += 1
+        return [max(w, 1) for w in widths]
+
+    return col_widths
+
+
+def normalize_row(row, max_cols):
+    if len(row) < max_cols:
+        return row + [""] * (max_cols - len(row))
+    return row[:max_cols]
+
+
+def draw_separator(col_widths):
+    return "+" + "+".join("-" * (width + 2) for width in col_widths) + "+"
+
+
+def render_ascii_lines(title_row, content_rows, col_widths, frame, end, append):
+    lines = []
+    max_cols = len(col_widths)
+
+    def row_to_line(row):
+        row = normalize_row(row, max_cols)
+        cells = [f" {row[idx]:<{col_widths[idx]}} " for idx in range(max_cols)]
+        return "|" + "|".join(cells) + "|"
+
+    has_title = bool(title_row)
+    has_rows = bool(content_rows)
+    has_content = has_title or has_rows
+    sep = draw_separator(col_widths)
+
+    if frame:
+        lines.append(sep)
+    elif has_title and not append:
+        lines.append(sep)
+
+    if has_title:
+        lines.append(row_to_line(title_row))
+        if frame:
+            lines.append(sep)
+
+    for idx, row in enumerate(content_rows):
+        lines.append(row_to_line(row))
+        if frame and idx < len(content_rows) - 1:
+            lines.append(sep)
+
+    if end or (frame and has_content):
+        lines.append(sep)
+
+    return lines
+
+
+def render_markdown_lines(title_row, content_rows, col_widths):
+    lines = []
+    max_cols = len(col_widths)
+
+    def row_to_line(row):
+        row = normalize_row(row, max_cols)
+        cells = [f" {row[idx]:<{col_widths[idx]}} " for idx in range(max_cols)]
+        return "|" + "|".join(cells) + "|"
+
+    if title_row:
+        lines.append(row_to_line(title_row))
+        lines.append("|" + "|".join(f" {'-' * col_widths[idx]} " for idx in range(max_cols)) + "|")
+
+    for row in content_rows:
+        lines.append(row_to_line(row))
+
+    return lines
+
+
+def render_stdout_diff(lines, previous_lines):
+    previous_count = len(previous_lines)
+    new_count = len(lines)
+    overlap_count = min(previous_count, new_count)
+
+    for idx in range(overlap_count):
+        if previous_lines[idx] == lines[idx]:
+            continue
+
+        up = previous_count - idx
+        if up > 0:
+            sys.stdout.write(f"\x1b[{up}A")
+
+        sys.stdout.write("\r\x1b[2K")
+        sys.stdout.write(lines[idx])
+
+        if up > 0:
+            sys.stdout.write(f"\x1b[{up}B")
+
+    if new_count > previous_count:
+        for idx in range(previous_count, new_count):
+            sys.stdout.write("\r\x1b[2K")
+            sys.stdout.write(lines[idx])
+            sys.stdout.write("\n")
+    elif previous_count > new_count:
+        for idx in range(new_count, previous_count):
+            up = previous_count - idx
+            if up > 0:
+                sys.stdout.write(f"\x1b[{up}A")
+
+            sys.stdout.write("\r\x1b[2K")
+
+            if up > 0:
+                sys.stdout.write(f"\x1b[{up}B")
+
+        shift_up = previous_count - new_count
+        if shift_up > 0:
+            sys.stdout.write(f"\x1b[{shift_up}A")
+
+    sys.stdout.write("\r")
+    sys.stdout.flush()
+
+
+def load_state():
+    if not STATE_FILE.exists():
+        return {
+            "title_row": [],
+            "content_rows": [],
+            "width_arg": "dynamic",
+            "frame": False,
+            "end": False,
+            "output_format": "ascii",
+            "last_rendered_line_count": 0,
+            "last_rendered_lines": [],
+            "last_parent_pid": None,
+            "last_invocation_ts": 0.0,
+        }
+
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {
+            "title_row": [],
+            "content_rows": [],
+            "width_arg": "dynamic",
+            "frame": False,
+            "end": False,
+            "output_format": "ascii",
+            "last_rendered_line_count": 0,
+            "last_rendered_lines": [],
+            "last_parent_pid": None,
+            "last_invocation_ts": 0.0,
+        }
+
+
+def save_state(state):
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def clear_state():
+    try:
+        STATE_FILE.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def merge_state(args):
+    state = {
+        "title_row": [],
+        "content_rows": [],
+        "width_arg": "dynamic",
+        "frame": False,
+        "end": False,
+        "output_format": "ascii",
+        "last_rendered_line_count": 0,
+        "last_rendered_lines": [],
+        "last_parent_pid": None,
+        "last_invocation_ts": 0.0,
+    }
+
+    if not args.new_session:
+        state = load_state()
+
+    has_existing_session_content = bool(state.get("title_row") or state.get("content_rows"))
+
+    if args.new_session:
+        state["output_format"] = "markdown" if args.markdown else "ascii"
+    elif not has_existing_session_content:
+        state["output_format"] = "markdown" if args.markdown else "ascii"
+    else:
+        state["output_format"] = state.get("output_format", "ascii")
+
+    if args.title_row:
+        state["title_row"] = parse_row(args.title_row)
+
+    if args.row:
+        for row_text in args.row:
+            state["content_rows"].append(parse_row(row_text))
+
+    if args.width is not None:
+        state["width_arg"] = args.width
+
+    if args.frame:
+        state["frame"] = True
+
+    if args.end:
+        state["end"] = True
+
+    save_state(state)
+    return state, has_existing_session_content
+
+
+def render_with_curses(stdscr, lines, title_row, content_rows, col_widths, bold_first_column):
+    curses.curs_set(0)
+    stdscr.keypad(True)
+
+    normal = curses.A_NORMAL
+    bold = curses.A_BOLD
+
+    row_styles = []
+    max_cols = len(col_widths)
+
+    def style_map_for_row(row, is_header=False):
+        row = normalize_row(row, max_cols)
+        style_spans = []
+        cursor = 1
+        for idx in range(max_cols):
+            cursor += 1
+            text_width = min(len(row[idx]), col_widths[idx])
+            attr = bold if (is_header or (bold_first_column and idx == 0 and not is_header)) else normal
+            style_spans.append((cursor, text_width, attr))
+            cursor += col_widths[idx] + 2
+        return style_spans
+
+    line_cursor = 0
+    if title_row:
+        if lines and lines[0].startswith("+"):
+            line_cursor += 1
+        row_styles.append((line_cursor, style_map_for_row(title_row, is_header=True)))
+        line_cursor += 1
+        if line_cursor < len(lines) and lines[line_cursor].startswith("+"):
+            line_cursor += 1
+
+    for row in content_rows:
+        row_styles.append((line_cursor, style_map_for_row(row, is_header=False)))
+        line_cursor += 1
+        if line_cursor < len(lines) and lines[line_cursor].startswith("+"):
+            line_cursor += 1
+
+    scroll = 0
+    while True:
+        stdscr.erase()
+        height, width = stdscr.getmaxyx()
+        view_height = max(height - 1, 1)
+
+        max_scroll = max(len(lines) - view_height, 0)
+        scroll = max(0, min(scroll, max_scroll))
+
+        for vis_idx in range(view_height):
+            src_idx = scroll + vis_idx
+            if src_idx >= len(lines):
+                break
+            line = lines[src_idx][: max(width - 1, 1)]
+            stdscr.addstr(vis_idx, 0, line)
+
+            for style_line_idx, spans in row_styles:
+                if style_line_idx == src_idx:
+                    for start, span_width, attr in spans:
+                        if start >= width - 1 or span_width <= 0:
+                            continue
+                        draw_width = min(span_width, width - 1 - start)
+                        if draw_width > 0:
+                            stdscr.chgat(vis_idx, start, draw_width, attr)
+                    break
+
+        help_line = "q:quit  j/k or arrows:scroll"
+        stdscr.addstr(height - 1, 0, help_line[: max(width - 1, 1)], curses.A_DIM)
+
+        stdscr.refresh()
+        key = stdscr.getch()
+
+        if key in (ord("q"), ord("Q")):
+            break
+        if key in (curses.KEY_DOWN, ord("j")):
+            scroll += 1
+        if key in (curses.KEY_UP, ord("k")):
+            scroll -= 1
+        if key == curses.KEY_NPAGE:
+            scroll += view_height
+        if key == curses.KEY_PPAGE:
+            scroll -= view_height
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description="Generate formatted tables in the terminal.",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument("-t", "--title-row", type=str, help="Comma-separated values for the table title row.")
+    parser.add_argument(
+        "-r",
+        "--row",
+        action="append",
+        type=str,
+        help="Comma-separated values for a content row. Can be used multiple times.",
+    )
+    parser.add_argument(
+        "-w",
+        "--width",
+        type=str,
+        default="dynamic",
+        help="Table width strategy: dynamic, equal, full, or custom integer width.",
+    )
+    parser.add_argument("-f", "--frame", action="store_true", help="Wrap the table in a frame border.")
+    parser.add_argument(
+        "-e",
+        "--end",
+        action="store_true",
+        help="Print a final/closing frame after the last row. Implies frame-style bottom border.",
+    )
+    parser.add_argument("-a", "--append", action="store_true", help="Append row to framed table and skip top border.")
+    parser.add_argument("-c", "--clear-state", action="store_true", help="Clear persisted table state.")
+    parser.add_argument("-n", "--new-session", action="store_true", help="Ignore previous table state.")
+    parser.add_argument("-m", "--markdown", action="store_true", help="Output table in Markdown format.")
+    parser.add_argument(
+        "-b1",
+        "--bold-first-column",
+        action="store_true",
+        help="Bold the first column of data rows (TTY/curses view).",
+    )
+    parser.add_argument(
+        "-s",
+        "--screen",
+        action="store_true",
+        help="Render in interactive curses screen mode (TTY only).",
+    )
+    parser.add_argument("-F", "--force", action="store_true", help="Accepted for compatibility; no prompt is used.")
+    return parser
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.clear_state:
+        clear_state()
+        if not (args.title_row or args.row):
+            print("Fmt-table state cleared.")
+            return 0
+
+    state, had_existing_session_content = merge_state(args)
+
+    title_row = state["title_row"]
+    content_rows = state["content_rows"]
+    width_arg = state["width_arg"]
+    frame = state["frame"]
+    end = state["end"]
+    output_format = state.get("output_format", "ascii")
+
+    interactive_stdout = sys.stdout.isatty()
+    interactive_stdin = sys.stdin.isatty()
+    current_parent_pid = os.getppid()
+    current_time = time.time()
+
+    last_parent_pid = state.get("last_parent_pid")
+    last_invocation_ts = float(state.get("last_invocation_ts", 0.0))
+    same_chain_window = (
+        last_parent_pid == current_parent_pid
+        and (current_time - last_invocation_ts) <= REDRAW_CHAIN_WINDOW_SECONDS
+    )
+    append_context = had_existing_session_content and bool(args.row) and not bool(args.title_row)
+
+    col_widths = calculate_column_widths(title_row, content_rows, width_arg)
+
+    if output_format == "markdown":
+        lines = render_markdown_lines(title_row, content_rows, col_widths)
+
+        if interactive_stdout:
+            previous_lines = state.get("last_rendered_lines", [])
+            if not isinstance(previous_lines, list):
+                previous_lines = []
+
+            if append_context and same_chain_window:
+                render_stdout_diff(lines, previous_lines)
+            else:
+                print("\n".join(lines))
+
+            state["last_rendered_line_count"] = len(lines)
+            state["last_rendered_lines"] = list(lines)
+            state["last_parent_pid"] = current_parent_pid
+            state["last_invocation_ts"] = current_time
+            save_state(state)
+            return 0
+
+        print("\n".join(lines))
+        return 0
+
+    lines = render_ascii_lines(title_row, content_rows, col_widths, frame, end, args.append)
+
+    if not args.screen:
+        if interactive_stdout:
+            previous_lines = state.get("last_rendered_lines", [])
+            if not isinstance(previous_lines, list):
+                previous_lines = []
+
+            if append_context and same_chain_window:
+                render_stdout_diff(lines, previous_lines)
+            else:
+                print("\n".join(lines))
+
+            state["last_rendered_line_count"] = len(lines)
+            state["last_rendered_lines"] = list(lines)
+            state["last_parent_pid"] = current_parent_pid
+            state["last_invocation_ts"] = current_time
+            save_state(state)
+            return 0
+
+        print("\n".join(lines))
+        return 0
+
+    if not interactive_stdout or not interactive_stdin:
+        print("\n".join(lines))
+        return 0
+
+    try:
+        curses.wrapper(render_with_curses, lines, title_row, content_rows, col_widths, args.bold_first_column)
+    except curses.error:
+        print("\n".join(lines))
+        return 0
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

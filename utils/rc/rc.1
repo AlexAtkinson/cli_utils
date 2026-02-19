@@ -1,0 +1,67 @@
+.TH RC 1 "2026-02-19" "rc" "User Commands"
+.SH NAME
+rc \- validate exit codes and log task completion
+.SH SYNOPSIS
+.B rc
+.RI [ options ] " EXPECTED" " [KILL]"
+.SH DESCRIPTION
+.B rc
+compares an expected exit code to an actual exit code and logs task completion.
+.PP
+If the values match,
+.B rc
+logs a SUCCESS message.
+If they differ,
+.B rc
+logs an ERROR message.
+.PP
+When
+.B KILL
+is supplied and values differ,
+.B rc
+exits with the actual exit code.
+.SH OPTIONS
+.TP
+.BR -a , " --actual " INT
+Actual exit code to validate.
+Defaults to
+.B RC_EXIT_CODE
+if set, otherwise 0.
+.TP
+.BR -t , " --task " TEXT
+Task label used in log output.
+Defaults to
+.B TASK
+if set.
+.TP
+.BR -h , " --help"
+Show help and exit.
+.SH ENVIRONMENT
+.TP
+.B TASK
+Default task label.
+.TP
+.B RC_EXIT_CODE
+Default actual exit code.
+.SH EXAMPLES
+.PP
+.B rc --actual 0 0
+.PP
+.B RC_EXIT_CODE=1 TASK="Deploy" rc 0
+.PP
+.B RC_EXIT_CODE=2 TASK="Deploy" rc 0 KILL
+.SH EXIT STATUS
+.TP
+.B 0
+Success or mismatch without KILL.
+.TP
+.B 2
+Invalid usage or invalid numeric values.
+.PP
+When mismatch occurs with
+.B KILL,
+.B rc
+returns the actual exit code.
+.SH SEE ALSO
+.BR et (1),
+.BR loggerx (1)

@@ -1,0 +1,51 @@
+.TH ET 1 "2026-02-19" "et" "User Commands"
+.SH NAME
+et \- log task start messages
+.SH SYNOPSIS
+.B et
+.RI [ TASK ... ]
+.SH DESCRIPTION
+.B et
+emits a task start message in the form:
+.PP
+TASK START: <task>...
+.PP
+Task text is resolved in this order:
+.IP "1." 4
+Join positional arguments with spaces.
+.IP "2." 4
+Use the
+.B TASK
+environment variable if no positional arguments are provided.
+.PP
+If
+.B loggerx
+is available in PATH,
+.B et
+calls:
+.PP
+loggerx INFO "TASK START: <task>..."
+.PP
+If
+.B loggerx
+is not available,
+.B et
+prints a plain UTC INFO line to stdout.
+.SH OPTIONS
+.TP
+.BR -h , " --help"
+Show help and exit.
+.SH EXAMPLES
+.PP
+.B et "Refactor parser"
+.PP
+.B TASK="Prepare release" et
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 2
+Invalid input (for example, empty task).
+.SH SEE ALSO
+.BR loggerx (1)

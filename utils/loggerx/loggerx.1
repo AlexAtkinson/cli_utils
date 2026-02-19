@@ -1,0 +1,64 @@
+.TH LOGGERX 1 "February 2026" "loggerx" "User Commands"
+.SH NAME
+loggerx \- colorized terminal logger with syslog output
+.SH SYNOPSIS
+.B loggerx
+[\fIOPTIONS\fR] \fILEVEL\fR \fIMESSAGE...\fR
+.SH DESCRIPTION
+.B loggerx
+prints log entries with a UTC timestamp and level styling.
+
+It can optionally append output to a file and always attempts to write a raw form
+of the message to syslog.
+.SH LEVELS
+EMERGENCY, ALERT, CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG, SUCCESS
+.SH OPTIONS
+.TP
+.B \-\-log\-to\-file
+Append rendered terminal output to a file.
+The default can be set by the
+.B LOG_TO_FILE
+environment variable.
+.TP
+.B \-\-log\-file \fIPATH\fR
+Path used with
+.BR \-\-log\-to\-file .
+Defaults to
+.B LOG_FILE
+if set, otherwise
+.BR ./loggerx.log .
+.TP
+.B \-\-no\-color
+Disable ANSI colors in terminal output.
+.TP
+.B \-h, \-\-help
+Show help text and exit.
+.SH ENVIRONMENT
+.TP
+.B LOG_TO_FILE
+Boolean default for
+.BR \-\-log\-to\-file 
+(true/false, 1/0, yes/no, on/off).
+.TP
+.B LOG_FILE
+Default path for
+.BR \-\-log\-file .
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid log level or file logging error.
+.TP
+.B 2
+Invalid command usage.
+.SH EXAMPLES
+.TP
+.B loggerx INFO "service started"
+.TP
+.B loggerx WARNING "cache miss"
+.TP
+.B loggerx --log-to-file --log-file /tmp/app.log ERROR "request failed"
+.SH AUTHOR
+Alex Atkinson and contributors.

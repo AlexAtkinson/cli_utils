@@ -1,0 +1,16 @@
+# AI Context (token-disciplined)
+
+Project: Go `loggerx` terminal/syslog logger.
+
+Operational constraints:
+- Stable log level contract.
+- Optional file logging behavior must remain deterministic.
+- Syslog write failure should warn, not hard-fail normal output.
+
+Maintenance priorities:
+- Keep CLI options compact and backward compatible.
+- Preserve install/uninstall and man-page distribution pattern.
+
+Token efficiency rules:
+- Keep under ~140 words.
+- Capture only active constraints; avoid historical repetition.

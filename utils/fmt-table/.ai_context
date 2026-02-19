@@ -1,0 +1,17 @@
+# AI Context (token-disciplined)
+
+Project: Go `fmt-table` dynamic renderer.
+
+Core behavior to preserve:
+- Header/rows with aligned columns.
+- Session persistence at `~/.cache/fmt-table/state.json`.
+- Append + redraw workflow in interactive terminals.
+- Explicit input required (`--title-row` and/or `--row`).
+
+Compatibility stance:
+- Accept legacy flags (`-b1`, `-s`, `-F`) as non-breaking no-ops.
+
+Token efficiency rules:
+- Keep under ~160 words.
+- Only track active behavior constraints and immediate roadmap.
+- Archive finalized decisions in `.ai-history`.

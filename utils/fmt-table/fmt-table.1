@@ -1,0 +1,75 @@
+.TH FMT-TABLE 1 "2026-02-19" "fmt-table" "User Commands"
+.SH NAME
+fmt-table \- render aligned terminal tables with persisted session state
+.SH SYNOPSIS
+.B fmt-table
+.RI [ options ]
+.SH DESCRIPTION
+.B fmt-table
+renders ASCII or Markdown tables and can persist session state between invocations.
+It supports append workflows where newly added rows can redraw a previous table snapshot
+in interactive terminals.
+.SH OPTIONS
+.TP
+.BR -t , " --title-row " TEXT
+Comma-separated title row.
+.TP
+.BR -r , " --row " TEXT
+Comma-separated content row. Repeatable.
+.TP
+.BR -w , " --width " STR
+Width strategy:
+.B dynamic
+,
+.B equal
+,
+.B full
+, or integer width.
+.TP
+.BR -f , " --frame"
+Render frame borders.
+.TP
+.BR -e , " --end"
+Render closing border.
+.TP
+.BR -a , " --append"
+Append mode for framed output.
+.TP
+.BR -c , " --clear-state"
+Clear persisted state.
+.TP
+.BR -n , " --new-session"
+Ignore prior state on this run.
+.TP
+.BR -m , " --markdown"
+Use markdown output when creating a new session.
+.TP
+.BR -b1 , " --bold-first-column"
+Accepted for compatibility.
+.TP
+.BR -s , " --screen"
+Accepted for compatibility.
+.TP
+.BR -F , " --force"
+Accepted for compatibility.
+.TP
+.BR -h , " --help"
+Show help and exit.
+.SH FILES
+.TP
+.B ~/.cache/fmt-table/state.json
+Persisted table session state.
+.SH EXAMPLES
+.PP
+.B fmt-table -n -t "Task,Status" -r "Build,Running" -f
+.PP
+.B fmt-table -r "Test,Queued" -fa
+.PP
+.B fmt-table -n -m -t "A,B" -r "1,2"
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 2
+Invalid command usage.
