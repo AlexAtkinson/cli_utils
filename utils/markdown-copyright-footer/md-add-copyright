@@ -1,0 +1,463 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly DEFAULT_OWNER='Alex Atkinson'
+readonly DEFAULT_YEAR="$(date +%Y)"
+
+check_mode=false
+verbose_mode=false
+quiet_mode=false
+json_mode=false
+detect_year_mode=false
+update_mode=false
+target_path="."
+target_file=""
+manual_year=""
+manual_owner=""
+original_arg_count=$#
+
+print_usage() {
+	echo "Usage: $0 [--check] [--verbose] [--quiet] [--json] [--detect-year] [--update] [--year <yyyy>] [--owner <name>] [--path <dir> | --file <file>]"
+	echo
+	echo "Default behavior:"
+	echo "  With no arguments, scans all *.md files in and below the current directory."
+	echo "  The script will prompt for confirmation and author before continuing."
+	echo
+	echo "Options:"
+	echo "  --check         Report files that would change without modifying them"
+	echo "  --verbose       Print files that were modified in normal mode"
+	echo "  --quiet         Suppress non-error output"
+	echo "  --json          Emit machine-readable summary output"
+	echo "  --detect-year   Detect year: use repository first commit year, else file mtime year"
+	echo "  --update        Force overwrite existing copyright footer blocks"
+	echo "  --year          Manually set copyright year (overrides --detect-year)"
+	echo "  --owner         Manually set copyright owner name"
+	echo "  --path          Restrict processing to a target directory"
+	echo "  --file          Restrict processing to a single markdown file"
+	echo "  -h, --help      Show this help menu"
+	echo
+	echo "Examples:"
+	echo "  $0"
+	echo "  $0 --check"
+	echo "  $0 --path test"
+	echo "  $0 --file test/1/foo.md --verbose"
+	echo "  $0 --check --json --path test"
+	echo "  $0 --detect-year --path test"
+	echo "  $0 --update --year 2024 --owner \"Acme Corp\" --path docs"
+	echo "  $0 --year 2024 --owner \"Acme Corp\" --path docs"
+}
+
+confirm_default_run() {
+	echo "No arguments provided."
+	echo "This will process all markdown files under: $PWD"
+
+	read -r -p "Continue? [y/N]: " response
+	case "$response" in
+		[Yy]|[Yy][Ee][Ss])
+			return
+			;;
+		*)
+			echo "Aborted."
+			exit 0
+			;;
+	esac
+}
+
+parse_args() {
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--check)
+				check_mode=true
+				shift
+				;;
+			--verbose)
+				verbose_mode=true
+				shift
+				;;
+			--quiet)
+				quiet_mode=true
+				shift
+				;;
+			--json)
+				json_mode=true
+				quiet_mode=true
+				shift
+				;;
+			--detect-year)
+				detect_year_mode=true
+				shift
+				;;
+			--update)
+				update_mode=true
+				shift
+				;;
+			--year)
+				if [[ $# -lt 2 ]]; then
+					echo "Missing value for --year" >&2
+					print_usage >&2
+					exit 2
+				fi
+				manual_year="$2"
+				shift 2
+				;;
+			--owner)
+				if [[ $# -lt 2 ]]; then
+					echo "Missing value for --owner" >&2
+					print_usage >&2
+					exit 2
+				fi
+				manual_owner="$2"
+				shift 2
+				;;
+			--path)
+				if [[ $# -lt 2 ]]; then
+					echo "Missing value for --path" >&2
+					print_usage >&2
+					exit 2
+				fi
+				target_path="$2"
+				shift 2
+				;;
+			--file)
+				if [[ $# -lt 2 ]]; then
+					echo "Missing value for --file" >&2
+					print_usage >&2
+					exit 2
+				fi
+				target_file="$2"
+				shift 2
+				;;
+			-h|--help)
+				print_usage
+				exit 0
+				;;
+			*)
+				echo "Unknown argument: $1" >&2
+				print_usage >&2
+				exit 2
+				;;
+		esac
+	done
+
+	if [[ -n "$target_file" && "$target_path" != "." ]]; then
+		echo "Use either --path or --file, not both" >&2
+		exit 2
+	fi
+
+	if [[ -n "$target_file" ]]; then
+		if [[ ! -f "$target_file" ]]; then
+			echo "File does not exist: $target_file" >&2
+			exit 2
+		fi
+
+		if [[ "$target_file" != *.md ]]; then
+			echo "File must be a markdown file (*.md): $target_file" >&2
+			exit 2
+		fi
+
+		return
+	fi
+
+	if [[ ! -d "$target_path" ]]; then
+		echo "Path is not a directory: $target_path" >&2
+		exit 2
+	fi
+
+	if [[ -n "$manual_year" && ! "$manual_year" =~ ^[0-9]{4}$ ]]; then
+		echo "--year must be a 4-digit year" >&2
+		exit 2
+	fi
+
+	if [[ -n "$manual_owner" && -z "${manual_owner//[[:space:]]/}" ]]; then
+		echo "--owner must not be empty" >&2
+		exit 2
+	fi
+}
+
+needs_trailing_whitespace_trim() {
+	local file_path="$1"
+	grep -q '[[:space:]]$' "$file_path"
+}
+
+resolve_owner() {
+	if [[ -n "$manual_owner" ]]; then
+		echo "$manual_owner"
+		return
+	fi
+
+	echo "$DEFAULT_OWNER"
+}
+
+prompt_for_owner() {
+	if [[ -n "$manual_owner" ]]; then
+		return
+	fi
+
+	if [[ ! -t 0 ]]; then
+		manual_owner="$DEFAULT_OWNER"
+		return
+	fi
+
+	local response
+	echo "Copyright owner prompt:"
+	read -r -p "Author/Owner (default: $DEFAULT_OWNER): " response
+
+	if [[ -z "${response//[[:space:]]/}" ]]; then
+		manual_owner="$DEFAULT_OWNER"
+	else
+		manual_owner="$response"
+	fi
+}
+
+filesystem_year_for_file() {
+	local file_path="$1"
+	local epoch
+
+	if epoch=$(stat -c %Y "$file_path" 2>/dev/null); then
+		date -d "@$epoch" +%Y 2>/dev/null || date -r "$epoch" +%Y
+		return
+	fi
+
+	epoch=$(stat -f %m "$file_path")
+	date -r "$epoch" +%Y
+}
+
+git_first_commit_year_for_repo() {
+	local file_path="$1"
+	local file_dir
+	local repo_root
+
+	file_dir=$(dirname "$file_path")
+
+	if ! repo_root=$(git -C "$file_dir" rev-parse --show-toplevel 2>/dev/null); then
+		return 1
+	fi
+
+	git -C "$repo_root" log --reverse --date="format:%Y" --format="format:%ad" | head -n 1
+}
+
+resolve_year() {
+	local file_path="$1"
+	local resolved_year
+
+	if [[ -n "$manual_year" ]]; then
+		echo "$manual_year"
+		return
+	fi
+
+	if [[ "$detect_year_mode" == true ]]; then
+		resolved_year=$(git_first_commit_year_for_repo "$file_path" || true)
+		if [[ -n "$resolved_year" ]]; then
+			echo "$resolved_year"
+			return
+		fi
+
+		resolved_year=$(filesystem_year_for_file "$file_path")
+		if [[ -n "$resolved_year" ]]; then
+			echo "$resolved_year"
+			return
+		fi
+	fi
+
+	echo "$DEFAULT_YEAR"
+}
+
+build_copyright_text() {
+	local year="$1"
+	local owner="$2"
+	echo "Copyright © $year $owner. All Rights Reserved."
+}
+
+build_copyright_block() {
+	local year="$1"
+	local owner="$2"
+	cat <<EOF
+<!-- markdownlint-disable MD033 -->
+<br><br>
+<p style="text-align: center;">
+  Copyright © $year $owner. All Rights Reserved.
+</p>
+EOF
+}
+
+escape_sed_replacement() {
+	local value="$1"
+	value="${value//\\/\\\\}"
+	value="${value//&/\\&}"
+	value="${value//#/\\#}"
+	echo "$value"
+}
+
+json_escape() {
+	local value="$1"
+	value="${value//\\/\\\\}"
+	value="${value//\"/\\\"}"
+	value="${value//$'\n'/\\n}"
+	value="${value//$'\r'/\\r}"
+	value="${value//$'\t'/\\t}"
+	echo "$value"
+}
+
+trim_trailing_whitespace() {
+	local file_path="$1"
+
+	if sed --version >/dev/null 2>&1; then
+		sed -i -e 's/[[:space:]]\+$//' "$file_path"
+		return
+	fi
+
+	sed -i '' -e 's/[[:space:]]\+$//' "$file_path"
+}
+
+normalize_or_append_copyright_block() {
+	local file_path="$1"
+	local year="$2"
+	local owner="$3"
+	local target_block
+
+	target_block=$(build_copyright_block "$year" "$owner")
+
+	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\n)?(?:<br><br>\n<p style="text-align: center;">\n\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\n<\/p>|<br><br><p style="text-align: center;">\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\s*<\/p>)\n*//gs' "$file_path"
+
+	if [[ "$update_mode" == true ]]; then
+		:
+	fi
+
+	perl -0777 -i -pe 's/\n*\z//s' "$file_path"
+	printf '\n\n%s\n' "$target_block" >> "$file_path"
+}
+
+normalize_copyright_block_context() {
+	:
+}
+
+normalize_footer_trailing_blank_line() {
+	:
+}
+
+apply_transformations() {
+	local file_path="$1"
+	local year="$2"
+	local owner="$3"
+
+	trim_trailing_whitespace "$file_path"
+	normalize_or_append_copyright_block "$file_path" "$year" "$owner"
+	normalize_copyright_block_context "$file_path"
+	normalize_footer_trailing_blank_line "$file_path"
+}
+
+process_markdown_file() {
+	local file_path="$1"
+	local owner
+	local year
+	local temp_file
+	local changed=false
+	((scanned_count+=1))
+
+	owner=$(resolve_owner)
+	year=$(resolve_year "$file_path")
+	seen_owner="$owner"
+	years_seen["$year"]=1
+
+	if [[ "$check_mode" == true ]]; then
+		temp_file=$(mktemp)
+		cp "$file_path" "$temp_file"
+		apply_transformations "$temp_file" "$year" "$owner"
+
+		if ! cmp -s "$file_path" "$temp_file"; then
+			if [[ "$quiet_mode" == false ]]; then
+				echo "CHANGE: $file_path"
+			fi
+			((pending_count+=1))
+			rm -f "$temp_file"
+			return 10
+		fi
+
+		rm -f "$temp_file"
+
+		return 0
+	fi
+
+	temp_file=$(mktemp)
+	cp "$file_path" "$temp_file"
+	apply_transformations "$file_path" "$year" "$owner"
+
+	if ! cmp -s "$file_path" "$temp_file"; then
+		changed=true
+	fi
+
+	rm -f "$temp_file"
+
+	if [[ "$verbose_mode" == true && "$quiet_mode" == false && "$changed" == true ]]; then
+		echo "UPDATED: $file_path (year=$year, owner=$owner)"
+	fi
+
+	if [[ "$changed" == true ]]; then
+		((updated_count+=1))
+	fi
+}
+
+parse_args "$@"
+
+if [[ "$original_arg_count" -eq 0 ]]; then
+	confirm_default_run
+fi
+
+prompt_for_owner
+
+files_need_changes=false
+scanned_count=0
+updated_count=0
+pending_count=0
+declare -A years_seen=()
+seen_owner=""
+
+if [[ -n "$target_file" ]]; then
+	if ! process_markdown_file "$target_file"; then
+		files_need_changes=true
+	fi
+else
+	while IFS= read -r -d '' markdown_file; do
+		if ! process_markdown_file "$markdown_file"; then
+			files_need_changes=true
+		fi
+	done < <(find -L "$target_path" -type f -name '*.md' -print0)
+fi
+
+if [[ "$quiet_mode" == false ]]; then
+	echo "Scanned: $scanned_count, Updated: $updated_count, Pending: $pending_count"
+fi
+
+if [[ "$json_mode" == true ]]; then
+	status="ok"
+	json_owner=""
+	json_year=""
+	year_count="${#years_seen[@]}"
+	if [[ "$check_mode" == true && "$files_need_changes" == true ]]; then
+		status="changes_needed"
+	fi
+
+	json_owner=$(json_escape "$seen_owner")
+
+	if [[ -n "$manual_year" ]]; then
+		json_year="$manual_year"
+	elif [[ "$detect_year_mode" == true ]]; then
+		if [[ "$year_count" -eq 1 ]]; then
+			for year_key in "${!years_seen[@]}"; do
+				json_year="$year_key"
+			done
+		else
+			json_year="per_file"
+		fi
+	else
+		json_year="$DEFAULT_YEAR"
+	fi
+
+	printf '{"status":"%s","check":%s,"scanned":%d,"updated":%d,"pending":%d,"year":"%s","owner":"%s"}\n' \
+		"$status" "$check_mode" "$scanned_count" "$updated_count" "$pending_count" "$json_year" "$json_owner"
+fi
+
+if [[ "$check_mode" == true && "$files_need_changes" == true ]]; then
+	exit 1
+fi
