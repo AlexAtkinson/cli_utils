@@ -1,0 +1,76 @@
+.TH MD-ADD-COPYRIGHT 1 "February 2026" "md-add-copyright" "User Commands"
+.SH NAME
+md-add-copyright \- normalize and append markdown copyright footer blocks
+.SH SYNOPSIS
+.B md-add-copyright
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B md-add-copyright
+scans markdown files, normalizes copyright footer blocks, and appends a standard footer block when needed.
+
+With no arguments, it scans all
+.B *.md
+files in and below the current directory and prompts before continuing.
+.SH OPTIONS
+.TP
+.B \--check
+Report files that would change without modifying them.
+.TP
+.B \--verbose
+Print files that were modified in normal mode.
+.TP
+.B \--quiet
+Suppress non-error output.
+.TP
+.B \--json
+Emit machine-readable summary output.
+.TP
+.B \--detect-year
+Detect year from repository first commit year, else file mtime year.
+.TP
+.B \--update
+Force overwrite existing copyright footer blocks.
+.TP
+.B \--year \fIYYYY\fR
+Manually set copyright year (overrides
+.BR \--detect-year ).
+.TP
+.B \--owner \fINAME\fR
+Manually set copyright owner name.
+.TP
+.B \--path \fIDIR\fR
+Restrict processing to a target directory.
+.TP
+.B \--file \fIFILE\fR
+Restrict processing to a single markdown file.
+.TP
+.B \-h, \--help
+Show help and exit.
+.SH EXIT STATUS
+.TP
+.B 0
+Success; no check-mode violations.
+.TP
+.B 1
+Check mode found files needing changes.
+.TP
+.B 2
+Invalid arguments or target path/file issues.
+.SH EXAMPLES
+.TP
+Scan current directory tree (with prompt):
+.B md-add-copyright
+.TP
+Dry-run check mode:
+.B md-add-copyright --check
+.TP
+Process one file verbosely:
+.B md-add-copyright --file docs/readme.md --verbose
+.TP
+Use detected year for a directory:
+.B md-add-copyright --detect-year --path docs
+.TP
+Set explicit year and owner:
+.B md-add-copyright --year 2024 --owner "Acme Corp" --path docs
+.SH AUTHOR
+Alex Atkinson and contributors.
