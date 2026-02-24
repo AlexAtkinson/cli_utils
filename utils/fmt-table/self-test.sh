@@ -50,35 +50,31 @@ set -e
 [[ "$empty_out" == *"error: no table input provided"* ]] || fail "missing no-input error message"
 pass "input required"
 
-markdown_expected='| A | B |
+markdown_expected=$'| \e[1mA\e[0m | \e[1mB\e[0m |
 | - | - |
 | 1 | 2 |'
 markdown_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -n -t "A,B" -r "1,2" -m)"
 assert_eq "$markdown_expected" "$markdown_actual" "markdown output"
 
-ascii_expected='+-------+----------+
-| Name  | Role     |
-+-------+----------+
+markdown_only_expected=$'| \e[1mName\e[0m  | \e[1mRole\e[0m     |
+| ----- | -------- |
 | Alice | Engineer |
-+-------+----------+'
-ascii_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -n -t "Name,Role" -r "Alice,Engineer" -f | cat)"
-assert_eq "$ascii_expected" "$ascii_actual" "ascii framed output"
+| Bob   | Manager  |'
+markdown_only_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -n -t "Name,Role" -r "Alice,Engineer" -r "Bob,Manager" -f | cat)"
+assert_eq "$markdown_only_expected" "$markdown_only_actual" "markdown-only output even with frame flag"
 
 HOME="$TMP_HOME" "$FMT_TABLE" -c >/dev/null
 HOME="$TMP_HOME" "$FMT_TABLE" -n -t "Fruit,Color" -r "Apple,Red" -f >/dev/null
-frame_append_expected='+--------+--------+
-| Fruit  | Color  |
-+--------+--------+
+frame_append_expected=$'| \e[1mFruit\e[0m  | \e[1mColor\e[0m  |
+| ------ | ------ |
 | Apple  | Red    |
-+--------+--------+
-| Banana | Yellow |
-+--------+--------+'
+| Banana | Yellow |'
 frame_append_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -r "Banana,Yellow" -fa | cat)"
 assert_eq "$frame_append_expected" "$frame_append_actual" "frame append redraw output"
 
 HOME="$TMP_HOME" "$FMT_TABLE" -c >/dev/null
 HOME="$TMP_HOME" "$FMT_TABLE" -n -m -t "M1,M2" -r "A,B" >/dev/null
-markdown_locked_expected='| M1 | M2 |
+markdown_locked_expected=$'| \e[1mM1\e[0m | \e[1mM2\e[0m |
 | -- | -- |
 | A  | B  |
 | C  | D  |'

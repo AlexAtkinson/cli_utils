@@ -6,3 +6,8 @@
 - Added uninstall support for each utility and documented root usage.
 - Introduced Go `fmt-table` project (`utils/fmt-table`) as the preferred implementation.
 - Kept `utils/fmt-table-py` available as a legacy reference.
+
+## 2026-02-20
+- Added Go `git-create-gist` utility wrapping `gh gist create`.
+- Kept gist visibility private-by-default with explicit `--public` opt-in.
+- Added description support and root Makefile integration for lifecycle targets.

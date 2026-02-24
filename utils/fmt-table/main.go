@@ -48,7 +48,7 @@ func defaultState() stateData {
 		WidthArg:              "dynamic",
 		Frame:                 false,
 		End:                   false,
-		OutputFormat:          "ascii",
+		OutputFormat:          "markdown",
 		LastRenderedLineCount: 0,
 		LastRenderedLines:     []string{},
 		LastParentPID:         0,
@@ -64,12 +64,12 @@ func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "  -t, --title-row TEXT     Comma-separated values for title row\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -r, --row TEXT           Comma-separated values for content row (repeatable)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -w, --width STR          Width strategy: dynamic|equal|full|INT\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  -f, --frame              Wrap table with borders\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  -e, --end                Print final closing border\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  -f, --frame              Accepted for compatibility (markdown-only output)\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  -e, --end                Accepted for compatibility (markdown-only output)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -a, --append             Append mode (skip top border on framed append)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -c, --clear-state        Clear persisted session state\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -n, --new-session        Ignore prior state for this invocation\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  -m, --markdown           Use markdown output when creating new session\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  -m, --markdown           Accepted for compatibility (markdown-only output)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -b1, --bold-first-column Accepted for compatibility (no-op in Go version)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -s, --screen             Accepted for compatibility (falls back to stdout render)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -F, --force              Accepted for compatibility\n")
@@ -280,13 +280,13 @@ func renderASCIILines(titleRow []string, contentRows [][]string, colWidths []int
 
 	if frame {
 		lines = append(lines, sep)
-	} else if hasTitle && !appendMode {
-		lines = append(lines, sep)
 	}
 
 	if hasTitle {
 		lines = append(lines, rowToLine(titleRow))
 		if frame {
+			lines = append(lines, sep)
+		} else if hasRows {
 			lines = append(lines, sep)
 		}
 	}
@@ -308,17 +308,28 @@ func renderASCIILines(titleRow []string, contentRows [][]string, colWidths []int
 func renderMarkdownLines(titleRow []string, contentRows [][]string, colWidths []int) []string {
 	lines := make([]string, 0)
 	maxCols := len(colWidths)
-	rowToLine := func(row []string) string {
+	rowToLine := func(row []string, bold bool) string {
 		row = normalizeRow(row, maxCols)
 		cells := make([]string, 0, maxCols)
 		for idx := 0; idx < maxCols; idx++ {
-			cells = append(cells, fmt.Sprintf(" %-*s ", colWidths[idx], row[idx]))
+			cell := row[idx]
+			if bold {
+				visible := len(stripANSI(cell))
+				pad := colWidths[idx] - visible
+				if pad < 0 {
+					pad = 0
+				}
+				styled := "\x1b[1m" + cell + "\x1b[0m"
+				cells = append(cells, " "+styled+strings.Repeat(" ", pad)+" ")
+				continue
+			}
+			cells = append(cells, fmt.Sprintf(" %-*s ", colWidths[idx], cell))
 		}
 		return "|" + strings.Join(cells, "|") + "|"
 	}
 
 	if len(titleRow) > 0 {
-		lines = append(lines, rowToLine(titleRow))
+		lines = append(lines, rowToLine(titleRow, true))
 		sepParts := make([]string, 0, maxCols)
 		for _, width := range colWidths {
 			sepParts = append(sepParts, fmt.Sprintf(" %s ", strings.Repeat("-", width)))
@@ -327,7 +338,7 @@ func renderMarkdownLines(titleRow []string, contentRows [][]string, colWidths []
 	}
 
 	for _, row := range contentRows {
-		lines = append(lines, rowToLine(row))
+		lines = append(lines, rowToLine(row, false))
 	}
 	return lines
 }
@@ -403,7 +414,7 @@ func loadState() stateData {
 		state.WidthArg = "dynamic"
 	}
 	if state.OutputFormat == "" {
-		state.OutputFormat = "ascii"
+		state.OutputFormat = "markdown"
 	}
 	if state.TitleRow == nil {
 		state.TitleRow = []string{}
@@ -441,11 +452,7 @@ func mergeState(args parsedArgs) (stateData, bool) {
 
 	hadExisting := len(state.TitleRow) > 0 || len(state.ContentRows) > 0
 	if args.NewSession || !hadExisting {
-		if args.Markdown {
-			state.OutputFormat = "markdown"
-		} else {
-			state.OutputFormat = "ascii"
-		}
+		state.OutputFormat = "markdown"
 	}
 
 	if args.TitleRow != "" {
@@ -565,9 +572,9 @@ func main() {
 	titleRow := state.TitleRow
 	contentRows := state.ContentRows
 	widthArg := state.WidthArg
-	frame := state.Frame
-	end := state.End
-	outputFormat := state.OutputFormat
+	_ = state.Frame
+	_ = state.End
+	_ = state.OutputFormat
 
 	interactiveStdout := isTTY(os.Stdout)
 	currentParentPID := os.Getppid()
@@ -576,13 +583,7 @@ func main() {
 	appendContext := hadExisting && len(args.Rows) > 0 && args.TitleRow == ""
 
 	colWidths := calculateColumnWidths(titleRow, contentRows, widthArg)
-
-	var lines []string
-	if outputFormat == "markdown" {
-		lines = renderMarkdownLines(titleRow, contentRows, colWidths)
-	} else {
-		lines = renderASCIILines(titleRow, contentRows, colWidths, frame, end, args.Append)
-	}
+	lines := renderMarkdownLines(titleRow, contentRows, colWidths)
 
 	if interactiveStdout {
 		previous := state.LastRenderedLines

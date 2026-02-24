@@ -10,6 +10,7 @@ These utilities will generally be in golang, but may vary as needed.
 * [et](utils/et/README.md)
 * [fmt-table](utils/fmt-table/README.md)
 * [fmt-table-py](utils/fmt-table-py/README.md)
+* [git-create-gist](utils/git-create-gist/README.md)
 * [loggerx](utils/loggerx/README.md)
 * [rc](utils/rc/README.md)
 
@@ -33,6 +34,7 @@ make loggerx-build
 make et-build
 make rc-build
 make fmt-table-build
+make git-create-gist-build
 
 # Install a specific Go utility
 make dts-install
@@ -40,6 +42,7 @@ make loggerx-install
 make et-install
 make rc-install
 make fmt-table-install
+make git-create-gist-install
 
 # Uninstall a specific utility
 make dts-uninstall
@@ -47,6 +50,7 @@ make loggerx-uninstall
 make et-uninstall
 make rc-uninstall
 make fmt-table-uninstall
+make git-create-gist-uninstall
 
 # Uninstall all utilities
 make uninstall-all

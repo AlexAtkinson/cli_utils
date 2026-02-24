@@ -4,6 +4,7 @@
 /utils/et/et
 /utils/rc/rc
 /utils/fmt-table/fmt-table
+/utils/git-create-gist/git-create-gist
 
 # Common Go outputs
 *.test
