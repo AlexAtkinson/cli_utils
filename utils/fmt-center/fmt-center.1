@@ -1,0 +1,13 @@
+.TH fmt-center 1 "2026-01-01" "fmt-center manual"
+.SH NAME
+fmt-center \- center text on a terminal line
+.SH SYNOPSIS
+.B fmt-center
+[-w \fIwidth\fP|--width \fIwidth\fP] \fItext ...\fP
+.SH DESCRIPTION
+Center text on a terminal line using space padding. If no text argument is provided, reads from stdin.
+.SH EXAMPLES
+.nf
+fmt-center "hello world"
+fmt-center --width 20 "hello world"
+.fi
