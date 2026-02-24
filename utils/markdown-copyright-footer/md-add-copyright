@@ -275,7 +275,7 @@ build_copyright_block() {
 	cat <<EOF
 <!-- markdownlint-disable MD033 -->
 <br><br>
-<p style="text-align: center;">
+<p align="center">
   Copyright © $year $owner. All Rights Reserved.
 </p>
 EOF
@@ -318,7 +318,7 @@ normalize_or_append_copyright_block() {
 
 	target_block=$(build_copyright_block "$year" "$owner")
 
-	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\n)?(?:<br><br>\n<p style="text-align: center;">\n\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\n<\/p>|<br><br><p style="text-align: center;">\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\s*<\/p>)\n*//gs' "$file_path"
+	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\n)?(?:<br><br>\n<p align="center">\n\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\n<\/p>|<br><br><p align="center">\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\s*<\/p>)\n*//gs' "$file_path"
 
 	if [[ "$update_mode" == true ]]; then
 		:
