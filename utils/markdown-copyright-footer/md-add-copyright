@@ -269,6 +269,53 @@ build_copyright_text() {
 	echo "Copyright © $year $owner. All Rights Reserved."
 }
 
+extract_existing_copyright_text() {
+	local file_path="$1"
+	perl -ne 'if (/Copyright © .* All Rights Reserved\.\x27?/) { ($m) = /Copyright © .* All Rights Reserved\.\x27?/; print $m; exit 0 }' "$file_path"
+}
+
+count_existing_copyright_blocks() {
+	local file_path="$1"
+	perl -ne '$count += () = /Copyright © .*? All Rights Reserved\.\x27?/g; END { print $count + 0 }' "$file_path"
+}
+
+count_broken_copyright_blocks() {
+	local file_path="$1"
+	perl -0777 -ne '$count += () = /(?:<!-- markdownlint-disable MD033 -->\s*)?<br><br>\s*<p\s+style="text-align:\s*center;"\s*>\s*<\/p>/gsi; END { print $count + 0 }' "$file_path"
+}
+
+confirm_footer_update_if_needed() {
+	local file_path="$1"
+	local existing_text="$2"
+	local target_text="$3"
+
+	if [[ -z "$existing_text" || "$existing_text" == "$target_text" || "$update_mode" == true ]]; then
+		return 0
+	fi
+
+	if [[ ! -t 0 ]]; then
+		echo "Found existing copyright text that differs in: $file_path" >&2
+		echo "Run with --update to apply changes non-interactively." >&2
+		exit 2
+	fi
+
+	echo "Detected existing copyright text that differs from target in: $file_path"
+	echo "  Existing: $existing_text"
+	echo "  Target:   $target_text"
+	read -r -p "Update this file? [y/N]: " response
+	case "$response" in
+		[Yy]|[Yy][Ee][Ss])
+			return 0
+			;;
+		*)
+			if [[ "$quiet_mode" == false ]]; then
+				echo "SKIP: $file_path"
+			fi
+			return 1
+			;;
+	esac
+}
+
 build_copyright_block() {
 	local year="$1"
 	local owner="$2"
@@ -318,11 +365,13 @@ normalize_or_append_copyright_block() {
 
 	target_block=$(build_copyright_block "$year" "$owner")
 
-	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\n)?(?:<br><br>\n<p align="center">\n\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\n<\/p>|<br><br><p align="center">\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\s*<\/p>)\n*//gs' "$file_path"
+	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\n)?(?:<br><br>\n<p align="center">\n\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\x27?\n<\/p>|<br><br><p align="center">\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\x27?\s*<\/p>)\n*//gs' "$file_path"
 
-	if [[ "$update_mode" == true ]]; then
-		:
-	fi
+	# Also remove loose/legacy copyright lines from broken prior runs.
+	perl -0777 -i -pe 's/^\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\x27?\s*\n//gm' "$file_path"
+
+	# Remove empty/broken footer shells from prior broken runs.
+	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\s*)?<br><br>\s*<p\s+style="text-align:\s*center;"\s*>\s*<\/p>\s*\n*//gsi' "$file_path"
 
 	perl -0777 -i -pe 's/\n*\z//s' "$file_path"
 	printf '\n\n%s\n' "$target_block" >> "$file_path"
@@ -351,14 +400,38 @@ process_markdown_file() {
 	local file_path="$1"
 	local owner
 	local year
+	local existing_text
+	local existing_count
+	local broken_count
+	local total_count
+	local target_text
 	local temp_file
 	local changed=false
 	((scanned_count+=1))
 
 	owner=$(resolve_owner)
 	year=$(resolve_year "$file_path")
+	target_text=$(build_copyright_text "$year" "$owner")
+	existing_text=$(extract_existing_copyright_text "$file_path")
+	existing_count=$(count_existing_copyright_blocks "$file_path")
+	broken_count=$(count_broken_copyright_blocks "$file_path")
+	total_count=$((existing_count + broken_count))
 	seen_owner="$owner"
 	years_seen["$year"]=1
+
+	if (( total_count > 1 )) && [[ "$quiet_mode" == false ]]; then
+		echo "NOTICE: duplicate/broken copyright blocks detected in $file_path (count=$total_count)."
+		echo "        Previous blocks will be removed and a single current block will be inserted."
+	elif (( broken_count > 0 )) && [[ "$quiet_mode" == false ]]; then
+		echo "NOTICE: broken copyright block(s) detected in $file_path (count=$broken_count)."
+		echo "        Previous blocks will be removed and a single current block will be inserted."
+	fi
+
+	if [[ "$check_mode" == false ]]; then
+		if ! confirm_footer_update_if_needed "$file_path" "$existing_text" "$target_text"; then
+			return 0
+		fi
+	fi
 
 	if [[ "$check_mode" == true ]]; then
 		temp_file=$(mktemp)
