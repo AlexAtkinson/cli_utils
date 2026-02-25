@@ -6,7 +6,8 @@ fmt-table \- render aligned terminal tables with persisted session state
 .RI [ options ]
 .SH DESCRIPTION
 .B fmt-table
-renders ASCII or Markdown tables and can persist session state between invocations.
+renders markdown-style terminal tables and can persist session state between invocations.
+The title row is styled with terminal ANSI bold sequences.
 It supports append workflows where newly added rows can redraw a previous table snapshot
 in interactive terminals.
 .SH OPTIONS
@@ -27,13 +28,13 @@ Width strategy:
 , or integer width.
 .TP
 .BR -f , " --frame"
-Render frame borders.
+Accepted for compatibility (markdown-only output).
 .TP
 .BR -e , " --end"
-Render closing border.
+Accepted for compatibility (markdown-only output).
 .TP
 .BR -a , " --append"
-Append mode for framed output.
+Append mode (compatibility behavior).
 .TP
 .BR -c , " --clear-state"
 Clear persisted state.
@@ -42,7 +43,7 @@ Clear persisted state.
 Ignore prior state on this run.
 .TP
 .BR -m , " --markdown"
-Use markdown output when creating a new session.
+Accepted for compatibility (markdown-only output).
 .TP
 .BR -b1 , " --bold-first-column"
 Accepted for compatibility.
@@ -61,9 +62,9 @@ Show help and exit.
 Persisted table session state.
 .SH EXAMPLES
 .PP
-.B fmt-table -n -t "Task,Status" -r "Build,Running" -f
+.B fmt-table -n -t "Task,Status" -r "Build,Running"
 .PP
-.B fmt-table -r "Test,Queued" -fa
+.B fmt-table -r "Test,Queued"
 .PP
 .B fmt-table -n -m -t "A,B" -r "1,2"
 .SH EXIT STATUS

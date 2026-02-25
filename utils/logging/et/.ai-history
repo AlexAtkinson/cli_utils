@@ -1,7 +1,0 @@
-# AI History
-
-## 2026-02-19
-- Replaced shell-only behavior with Go `et` CLI implementation.
-- Preserved compatibility via `et.sh` wrapper approach.
-- Added install/uninstall scripts, man page, and local Makefile.
-- Wired into root Makefile lifecycle targets.

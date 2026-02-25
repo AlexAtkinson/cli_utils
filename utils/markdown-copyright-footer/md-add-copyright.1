@@ -8,6 +8,14 @@ md-add-copyright \- normalize and append markdown copyright footer blocks
 .B md-add-copyright
 scans markdown files, normalizes copyright footer blocks, and appends a standard footer block when needed.
 
+If existing copyright text differs from the computed target text, the script prompts for
+confirmation before updating unless
+.B --update
+is supplied.
+
+Duplicate and broken footer blocks are detected, reported, and consolidated into one
+canonical footer block.
+
 With no arguments, it scans all
 .B *.md
 files in and below the current directory and prompts before continuing.
@@ -29,7 +37,7 @@ Emit machine-readable summary output.
 Detect year from repository first commit year, else file mtime year.
 .TP
 .B \--update
-Force overwrite existing copyright footer blocks.
+Force overwrite existing/differing footer blocks without interactive confirmation.
 .TP
 .B \--year \fIYYYY\fR
 Manually set copyright year (overrides
@@ -72,5 +80,8 @@ Use detected year for a directory:
 .TP
 Set explicit year and owner:
 .B md-add-copyright --year 2024 --owner "Acme Corp" --path docs
+.TP
+Non-interactive overwrite (CI-safe):
+.B md-add-copyright --path docs --owner "Acme Corp" --detect-year --update
 .SH AUTHOR
 Alex Atkinson and contributors.

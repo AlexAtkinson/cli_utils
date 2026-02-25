@@ -1,10 +1,10 @@
-.PHONY: go-build go-install go-uninstall dts-build dts-install dts-uninstall loggerx-build loggerx-install loggerx-uninstall et-build et-install et-uninstall rc-build rc-install rc-uninstall fmt-table-build fmt-table-install fmt-table-uninstall git-create-gist-build git-create-gist-install git-create-gist-uninstall fmt-table-self-test uninstall-all
+.PHONY: go-build go-install go-uninstall dts-build dts-install dts-uninstall loggerx-build loggerx-install loggerx-uninstall et-build et-install et-uninstall rc-build rc-install rc-uninstall fmt-table-build fmt-table-install fmt-table-uninstall git-create-gist-build git-create-gist-install git-create-gist-uninstall md-copyright-install md-copyright-uninstall md-copyright-self-test fmt-table-self-test uninstall-all
 
 go-build: dts-build loggerx-build et-build rc-build fmt-table-build git-create-gist-build
 
-go-install: dts-install loggerx-install et-install rc-install fmt-table-install git-create-gist-install
+go-install: dts-install loggerx-install et-install rc-install fmt-table-install git-create-gist-install md-copyright-install
 
-go-uninstall: dts-uninstall loggerx-uninstall et-uninstall rc-uninstall fmt-table-uninstall git-create-gist-uninstall
+go-uninstall: dts-uninstall loggerx-uninstall et-uninstall rc-uninstall fmt-table-uninstall git-create-gist-uninstall md-copyright-uninstall
 
 dts-build:
 	cd utils/dts && go build -o dts ./main.go
@@ -59,6 +59,15 @@ git-create-gist-install:
 
 git-create-gist-uninstall:
 	$(MAKE) -C utils/git-create-gist uninstall
+
+md-copyright-install:
+	$(MAKE) -C utils/markdown-copyright-footer install
+
+md-copyright-uninstall:
+	$(MAKE) -C utils/markdown-copyright-footer uninstall
+
+md-copyright-self-test:
+	$(MAKE) -C utils/markdown-copyright-footer self-test
 
 uninstall-all: go-uninstall
 

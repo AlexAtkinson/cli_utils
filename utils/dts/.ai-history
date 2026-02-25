@@ -1,6 +1,0 @@
-# AI History
-
-## 2026-02-19
-- Kept `dts` as a focused Go timestamp utility.
-- Established install/uninstall script pattern with man page support.
-- Integrated with root Makefile targets for build/install/uninstall.

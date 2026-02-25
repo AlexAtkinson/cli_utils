@@ -12,6 +12,7 @@ These utilities will generally be in golang, but may vary as needed.
 * [fmt-table-py](utils/fmt-table-py/README.md)
 * [git-create-gist](utils/git-create-gist/README.md)
 * [loggerx](utils/loggerx/README.md)
+* [markdown-copyright-footer](utils/markdown-copyright-footer/README.md)
 * [rc](utils/rc/README.md)
 
 ## Root Makefile Usage
@@ -43,6 +44,7 @@ make et-install
 make rc-install
 make fmt-table-install
 make git-create-gist-install
+make md-copyright-install
 
 # Uninstall a specific utility
 make dts-uninstall
@@ -51,11 +53,15 @@ make et-uninstall
 make rc-uninstall
 make fmt-table-uninstall
 make git-create-gist-uninstall
+make md-copyright-uninstall
 
 # Uninstall all utilities
 make uninstall-all
 
 # Run fmt-table regression checks
 make fmt-table-self-test
+
+# Run markdown-copyright-footer regression checks
+make md-copyright-self-test
 ```
 

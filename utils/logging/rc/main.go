@@ -24,7 +24,8 @@ func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "  - If KILL is supplied, exits with ACTUAL when mismatch occurs.\n\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -a, --actual INT   Actual exit code to validate (default: $RC_EXIT_CODE or 0)\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  -t, --task TEXT    Task label (default: $TASK)\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  -t, --task TEXT    Task label (default: TASK from process environment)\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "                    Use either: export TASK=...; rc ...  OR  TASK=... rc ...\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -h, --help         Show this help and exit\n")
 }
 
@@ -113,11 +114,20 @@ func logMessage(level string, message string) {
 	fallbackLog(level, message)
 }
 
+func taskFromEnv() string {
+	for _, key := range []string{"TASK", "task", "RC_TASK", "ET_TASK"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func main() {
 	flag.CommandLine.SetOutput(os.Stdout)
 	flag.CommandLine.Usage = usage
 
-	defaultTask := strings.TrimSpace(os.Getenv("TASK"))
+	defaultTask := taskFromEnv()
 	actualFlag := flag.Int("a", 0, "actual exit code")
 	taskFlag := flag.String("t", defaultTask, "task label")
 	help := flag.Bool("h", false, "show help")

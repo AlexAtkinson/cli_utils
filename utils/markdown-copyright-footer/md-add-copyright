@@ -368,7 +368,11 @@ normalize_or_append_copyright_block() {
 	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\n)?(?:<br><br>\n<p align="center">\n\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\x27?\n<\/p>|<br><br><p align="center">\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\x27?\s*<\/p>)\n*//gs' "$file_path"
 
 	# Also remove loose/legacy copyright lines from broken prior runs.
-	perl -0777 -i -pe 's/^\s*Copyright © [0-9]{4} .*? All Rights Reserved\.\x27?\s*\n//gm' "$file_path"
+	if sed --version >/dev/null 2>&1; then
+		sed -i -e '/^[[:space:]]*Copyright .* All Rights Reserved\..*$/d' "$file_path"
+	else
+		sed -i '' -e '/^[[:space:]]*Copyright .* All Rights Reserved\..*$/d' "$file_path"
+	fi
 
 	# Remove empty/broken footer shells from prior broken runs.
 	perl -0777 -i -pe 's/\n*(?:<!-- markdownlint-disable MD033 -->\s*)?<br><br>\s*<p\s+style="text-align:\s*center;"\s*>\s*<\/p>\s*\n*//gsi' "$file_path"

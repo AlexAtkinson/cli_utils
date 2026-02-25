@@ -17,7 +17,8 @@ func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "  et [TASK words...]\n\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "Behavior:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  - If TASK arguments are provided, they are joined into the task name.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  - If no TASK args are provided, et uses the TASK environment variable.\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  - If no TASK args are provided, et uses TASK from process environment.\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  - Use either: export TASK=...; et  OR  TASK=... et\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  - Emits: TASK START: <task>...\n\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -h, --help      Show this help and exit\n")
@@ -40,7 +41,14 @@ func taskFromInput(positional []string) string {
 	if len(positional) > 0 {
 		return strings.TrimSpace(strings.Join(positional, " "))
 	}
-	return strings.TrimSpace(os.Getenv("TASK"))
+
+	for _, key := range []string{"TASK", "task", "ET_TASK", "RC_TASK"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 func fallbackInfo(message string) {
@@ -78,7 +86,7 @@ func main() {
 	task := taskFromInput(flag.Args())
 	if task == "" {
 		fmt.Fprintln(os.Stderr, "error: task is empty")
-		fmt.Fprintln(os.Stderr, "pass a task as arguments or set TASK in the environment")
+		fmt.Fprintln(os.Stderr, "pass a task as arguments, or use: export TASK=...; et  (or TASK=... et)")
 		fmt.Fprintln(os.Stderr, "try: et --help")
 		os.Exit(2)
 	}

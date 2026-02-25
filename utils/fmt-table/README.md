@@ -1,13 +1,13 @@
 # fmt-table
 
-A Go utility to render aligned terminal tables and persist session state for dynamic append/update workflows.
+A Go utility to render aligned markdown-style terminal tables and persist session state for append/update workflows.
 
 ## Goals
 
 - Render title and content rows with aligned columns
 - Persist table state across invocations
 - Append rows and redraw the previously printed table snapshot in interactive terminals
-- Support ASCII and Markdown table output formats
+- Render markdown-style separators with terminal-bold title cells
 
 ## Usage
 
@@ -20,12 +20,12 @@ fmt-table [options]
 - `-t`, `--title-row` comma-separated title row
 - `-r`, `--row` comma-separated content row (repeatable)
 - `-w`, `--width` `dynamic`, `equal`, `full`, or integer width
-- `-f`, `--frame` add frame borders
-- `-e`, `--end` print closing border
-- `-a`, `--append` append mode for framed output
+- `-f`, `--frame` compatibility flag (accepted; markdown-only output)
+- `-e`, `--end` compatibility flag (accepted; markdown-only output)
+- `-a`, `--append` append mode (compatibility behavior)
 - `-c`, `--clear-state` clear persisted state
 - `-n`, `--new-session` ignore prior state for this run
-- `-m`, `--markdown` use markdown output when creating a new session
+- `-m`, `--markdown` compatibility flag (accepted; markdown-only output)
 - `-b1`, `--bold-first-column` compatibility flag (accepted)
 - `-s`, `--screen` compatibility flag (accepted)
 - `-F`, `--force` compatibility flag (accepted)
@@ -34,13 +34,13 @@ fmt-table [options]
 ## Examples
 
 ```bash
-# Start a new framed table session
-fmt-table -n -t "Task,Status" -r "Build,Running" -f
+# Start a new table session (markdown-style output)
+fmt-table -n -t "Task,Status" -r "Build,Running"
 
 # Append a row and redraw previous snapshot in-place when interactive
-fmt-table -r "Test,Queued" -fa
+fmt-table -r "Test,Queued"
 
-# Markdown session
+# Markdown session (default)
 fmt-table -n -m -t "A,B" -r "1,2"
 fmt-table -r "3,4"
 ```

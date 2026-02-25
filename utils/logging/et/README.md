@@ -24,7 +24,16 @@ et [task words...]
 ```bash
 et "Refactor parser"
 TASK="Prepare release" et
+TASK="Prepare release" ; et   # when using sourced utils/et/et.sh wrapper
+export TASK="Prepare release" ; et
 ```
+
+## Shell-variable behavior
+
+- `TASK="foo" et` works without exporting because the variable is part of the command environment.
+- `TASK="foo" ; et` requires either:
+	- `export TASK`, or
+	- sourcing `utils/et/et.sh` so the wrapper forwards shell `TASK`.
 
 ## Install
 
