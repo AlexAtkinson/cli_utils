@@ -1,29 +1,28 @@
 #!/usr/bin/env bash
-# loggerx
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Syslog-style exit code handling with colors to improve DX.
-# Notes:
-#   - Enables consistent log and script output.
-#   - Named loggerx to avoid clobbering logger if present.
-#   - There is no 9th/SUCCESS severity in RFC5424.
-#   - Output aligned with syslog.
-#   - Accepts multi-line logging.
-#     IE: loggerx INFO "This is a
-#                       multi-line
-#                       log entry"
-#   - If APP_NAME is not set in the environment, it will be
-#     inferred from the parent process's command line or
-#     environment variables.
-# Globals:
-#   LOG_TO_FILE    - If set to "true", logs will be appended to LOG_FILE.
-#   LOG_FILE       - The file to which logs will be appended if LOG_TO_FILE is "true".
-#   APP_NAME       - The name of the application or script using loggerx. Can be set in the environment or inferred.
-# Arguments:
-#   - $1    Log Level
-#   - $2-   Message
-# Usage:
-#   loggerx INFO "This is an info message"
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<EOF
+${0##*/} - syslog-style logger for better DX
+
+Usage:
+  ${0##*/} <LEVEL> <MESSAGE...>
+
+Levels:
+  EMERGENCY | ALERT | CRITICAL | ERROR | WARNING | NOTICE | INFO | DEBUG | SUCCESS
+
+Behavior:
+  - Writes colored output to stdout.
+  - Sends raw message to syslog via logger.
+  - Accepts multi-line messages.
+  - Uses APP_NAME from environment when set; otherwise infers caller name.
+  - If LOG_TO_FILE=true, also appends formatted output to LOG_FILE.
+
+Examples:
+  ${0##*/} INFO "Service started"
+  export APP_NAME=myapp; ${0##*/} WARNING "Disk usage high"
+EOF
+  exit 0
+fi
 
 C_EMERGENCY='\e[01;30;41m' # EMERGENCY
 C_ALERT='\e[01;31;43m'     # ALERT
@@ -50,7 +49,6 @@ case $1 in
 esac
 
 # If APP_NAME is already set in the environment, use it. Otherwise, try to infer it from the parent process.
-[[ -n "$APP_NAME" ]] && APP_NAME="$APP_NAME"
 [[ -z "$APP_NAME" ]] && APP_NAME="$(strings /proc/$PPID/task/$PPID/environ | grep '_=' | cut -d= -f2- | xargs basename 2>/dev/null)"
 [[ -z "$APP_NAME" || "$APP_NAME" == " " ]] && APP_NAME="${0##*/}"
 [[ "$APP_NAME" == "loggerx" ]] && APP_NAME="$(cat /proc/$PPID/task/$PPID/cmdline | xargs basename 2>/dev/null)"
@@ -58,8 +56,10 @@ esac
 # Set the PID of the original caller as an environment variable for potential use in log messages or other logic.
 APP_PID="[$PPID] "
 
+# shellcheck disable=SC2001
 MSG=$(printf '%b' "$(date --utc +'%Y-%m-%dT%H-%M-%SZ') ${HOSTNAME} ${APP_NAME}${APP_PID}${!C}${1}\e[0m: $(sed 's/^ \+//g'<<<"${*:2}")")
 LOG=$(sed -z 's/\n$//g'<<<"${MSG}" | sed -z "s/\n/\n${S}/g")
+# shellcheck disable=SC2001
 RAW="${APP_NAME}${APP_PID}${1}: $(sed 's/  */ /g'<<<"${*:2}")"
 
 if [[ "$LOG_TO_FILE" == "true" ]]; then

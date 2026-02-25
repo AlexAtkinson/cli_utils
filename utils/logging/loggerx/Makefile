@@ -1,4 +1,4 @@
-BINARY := et
+BINARY := loggerx
 
 .PHONY: all build run clean self-test install uninstall
 

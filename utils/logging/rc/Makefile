@@ -1,6 +1,6 @@
 BINARY := rc
 
-.PHONY: all build run clean install uninstall
+.PHONY: all build run clean self-test install uninstall
 
 all: build
 
@@ -12,6 +12,10 @@ run:
 
 clean:
 	rm -f $(BINARY)
+
+self-test: build
+	chmod +x ./self-test.sh
+	./self-test.sh
 
 install:
 	chmod +x ./install.sh

@@ -33,7 +33,11 @@ for arg in "$@"; do
   esac
 done
 
-echo "This script installs the 'et' utility and its man page."
+ET_DIR="$SCRIPT_DIR/et"
+RC_DIR="$SCRIPT_DIR/rc"
+LOGGERX_DIR="$SCRIPT_DIR/loggerx"
+
+echo "This script installs et, rc, and loggerx (plus their man pages)."
 echo
 
 if [[ "$GLOBAL_INSTALL" != "true" && "$INTERACTIVE" == "true" ]]; then
@@ -54,10 +58,10 @@ if [[ "$GLOBAL_INSTALL" == "true" || "$INTERACTIVE" != "true" ]]; then
   INSTALL_DIR="$DEFAULT_INSTALL_DIR"
   MAN_DIR="$DEFAULT_MAN_DIR"
 else
-  read -r -p "Install binary to (default: $DEFAULT_INSTALL_DIR): " USER_INSTALL_DIR
+  read -r -p "Install binaries to (default: $DEFAULT_INSTALL_DIR): " USER_INSTALL_DIR
   INSTALL_DIR="${USER_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
 
-  read -r -p "Install man page to (default: $DEFAULT_MAN_DIR): " USER_MAN_DIR
+  read -r -p "Install man pages to (default: $DEFAULT_MAN_DIR): " USER_MAN_DIR
   MAN_DIR="${USER_MAN_DIR:-$DEFAULT_MAN_DIR}"
 fi
 
@@ -72,21 +76,37 @@ if [[ "$GLOBAL_INSTALL" == "true" && "$EUID" -ne 0 ]]; then
 fi
 
 echo
+for dir in "$ET_DIR" "$RC_DIR" "$LOGGERX_DIR"; do
+  if [[ ! -d "$dir" ]]; then
+    echo "Error: expected utility directory missing: $dir" >&2
+    exit 1
+  fi
+done
+
 echo "Building et..."
-cd "$SCRIPT_DIR"
-go build -o et ./main.go
+go build -o "$ET_DIR/et" "$ET_DIR/main.go"
 
-echo "Installing binary to $INSTALL_DIR..."
+echo "Building rc..."
+go build -o "$RC_DIR/rc" "$RC_DIR/main.go"
+
+echo "Building loggerx..."
+go build -o "$LOGGERX_DIR/loggerx" "$LOGGERX_DIR/main.go"
+
+echo "Installing binaries to $INSTALL_DIR..."
 "${SUDO_CMD[@]}" mkdir -p "$INSTALL_DIR"
-"${SUDO_CMD[@]}" cp et "$INSTALL_DIR/et"
-"${SUDO_CMD[@]}" chmod +x "$INSTALL_DIR/et"
+"${SUDO_CMD[@]}" cp "$ET_DIR/et" "$INSTALL_DIR/et"
+"${SUDO_CMD[@]}" cp "$RC_DIR/rc" "$INSTALL_DIR/rc"
+"${SUDO_CMD[@]}" cp "$LOGGERX_DIR/loggerx" "$INSTALL_DIR/loggerx"
+"${SUDO_CMD[@]}" chmod +x "$INSTALL_DIR/et" "$INSTALL_DIR/rc" "$INSTALL_DIR/loggerx"
 
-echo "Installing man page to $MAN_DIR..."
+echo "Installing man pages to $MAN_DIR..."
 "${SUDO_CMD[@]}" mkdir -p "$MAN_DIR"
-"${SUDO_CMD[@]}" cp et.1 "$MAN_DIR/et.1"
+"${SUDO_CMD[@]}" cp "$ET_DIR/et.1" "$MAN_DIR/et.1"
+"${SUDO_CMD[@]}" cp "$RC_DIR/rc.1" "$MAN_DIR/rc.1"
+"${SUDO_CMD[@]}" cp "$LOGGERX_DIR/loggerx.1" "$MAN_DIR/loggerx.1"
 
 echo
-echo "et installed successfully."
+echo "Installed successfully: et, rc, loggerx"
 
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
   echo "Warning: '$INSTALL_DIR' is not currently in your PATH."
@@ -95,5 +115,5 @@ if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
 fi
 
 if command -v mandb >/dev/null 2>&1; then
-  echo "Tip: run 'mandb' (possibly with sudo) if 'man et' is not immediately found."
+  echo "Tip: run 'mandb' (possibly with sudo) if man pages are not immediately found."
 fi

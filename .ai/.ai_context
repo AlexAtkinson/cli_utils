@@ -1,0 +1,17 @@
+# AI Context (token-disciplined)
+
+Scope: monorepo orchestration for Linux CLI utilities.
+
+Current priorities:
+- Keep root Makefile as single control plane.
+- Preserve utility-level install/uninstall + man page conventions.
+- Prefer Go for new non-trivial tools.
+
+Conventions:
+- Minimal docs drift between root and utility READMEs.
+- Backward compatibility wrappers where shell usage existed.
+
+Token efficiency rules:
+- Keep this file under ~180 words.
+- Record only active constraints and near-term priorities.
+- Move decisions to `.ai_history`; do not duplicate details here.
