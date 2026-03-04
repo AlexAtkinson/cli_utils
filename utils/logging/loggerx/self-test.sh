@@ -42,6 +42,11 @@ assert_not_empty() {
   pass "$name"
 }
 
+count_leading_spaces() {
+  local value="$1"
+  awk '{ match($0, /^ */); print RLENGTH; }' <<<"$value"
+}
+
 go build -o "$BIN" "$SCRIPT_DIR/main.go"
 
 TMP_DIR="$(mktemp -d)"
@@ -82,6 +87,18 @@ assert_contains "$custom_pid_out" "myapp(pid42)" "APP_PID passthrough in rendere
 fallback_host_out="$(PATH="$TMP_DIR:$PATH" LOGGER_CAPTURE="$LOGGER_CAPTURE" APP_NAME='myapp' HOSTNAME='' "$BIN" INFO host fallback)"
 fallback_host="$(awk '{print $2}' <<<"$fallback_host_out")"
 assert_not_empty "$fallback_host" "hostname fallback when HOSTNAME unset"
+
+multiline_out="$(PATH="$TMP_DIR:$PATH" LOGGER_CAPTURE="$LOGGER_CAPTURE" APP_NAME='myapp' HOSTNAME='host1' "$BIN" INFO $'FOO\n      BAR')"
+multiline_plain="$(sed -r 's/\x1B\[[0-9;:]*[A-Za-z]//g' <<<"$multiline_out")"
+multiline_line1="$(head -n1 <<<"$multiline_plain")"
+multiline_line2="$(sed -n '2p' <<<"$multiline_plain")"
+prefix_before_foo="${multiline_line1%FOO}"
+expected_indent=${#prefix_before_foo}
+actual_indent="$(count_leading_spaces "$multiline_line2")"
+assert_eq "$expected_indent" "$actual_indent" "multiline indent aligns to message column"
+
+raw_syslog_multiline="$(cat "$LOGGER_CAPTURE")"
+assert_contains "$raw_syslog_multiline" $'INFO: FOO\n    BAR' "syslog multiline normalizes continuation indent"
 
 LOG_FILE="$TMP_DIR/loggerx.log"
 file_out="$(PATH="$TMP_DIR:$PATH" LOGGER_CAPTURE="$LOGGER_CAPTURE" APP_NAME='myapp' HOSTNAME='host1' LOG_TO_FILE='true' LOG_FILE="$LOG_FILE" "$BIN" WARNING disk high)"

@@ -41,16 +41,17 @@ C_DEBUG='\e[01;94m'
 C_SUCCESS='\e[01;32m'
 
 # Determine color and padding based on log level argument
+# S is the sum of characters in the timestamp, hostname, app name, 
 case $1 in
-  0|"EMERGENCY")  LVL="EMERGENCY"; C="C_${LVL}"; S=$(printf "%-39s" '') ;;
-  1|"ALERT")      LVL="ALERT"    ; C="C_${LVL}"; S=$(printf "%-35s" '') ;;
-  2|"CRITICAL")   LVL="CRITICAL" ; C="C_${LVL}"; S=$(printf "%-38s" '') ;;
-  3|"ERROR")      LVL="ERROR"    ; C="C_${LVL}"; S=$(printf "%-35s" '') ;;
-  4|"WARNING")    LVL="WARNING"  ; C="C_${LVL}"; S=$(printf "%-37s" '') ;;
-  5|"NOTICE")     LVL="NOTICE"   ; C="C_${LVL}"; S=$(printf "%-36s" '') ;;
-  6|"INFO")       LVL="INFO"     ; C="C_${LVL}"; S=$(printf "%-34s" '') ;;
-  7|"DEBUG")      LVL="DEBUG"    ; C="C_${LVL}"; S=$(printf "%-35s" '') ;;
-  9|"SUCCESS")    LVL="SUCCESS"  ; C="C_${LVL}"; S=$(printf "%-37s" '') ;;
+  0|"EMERGENCY")  LVL="EMERGENCY"; C="C_${LVL}" ;;
+  1|"ALERT")      LVL="ALERT"    ; C="C_${LVL}" ;;
+  2|"CRITICAL")   LVL="CRITICAL" ; C="C_${LVL}" ;;
+  3|"ERROR")      LVL="ERROR"    ; C="C_${LVL}" ;;
+  4|"WARNING")    LVL="WARNING"  ; C="C_${LVL}" ;;
+  5|"NOTICE")     LVL="NOTICE"   ; C="C_${LVL}" ;;
+  6|"INFO")       LVL="INFO"     ; C="C_${LVL}" ;;
+  7|"DEBUG")      LVL="DEBUG"    ; C="C_${LVL}" ;;
+  9|"SUCCESS")    LVL="SUCCESS"  ; C="C_${LVL}" ;;
   *)              loggerx ERROR "Invalid log level: '$1'!"
                   return 1 ;;
 esac
@@ -63,11 +64,15 @@ esac
 # Use APP_PID if available (e.g., et/rc forwarding), otherwise use PPID.
 [[ -z "$APP_PID" ]] && APP_PID="[$PPID] "
 
+# Padding for multi-line messages.
+S="$(wc -c <<< "$(date --utc +'%Y-%m-%dT%H-%M-%SZ') ${HOSTNAME} ${APP_NAME}${APP_PID}${LVL}:")"
+S=$(printf "%-${S}s" '')
+
 # shellcheck disable=SC2001
 MSG=$(printf '%b' "$(date --utc +'%Y-%m-%dT%H-%M-%SZ') ${HOSTNAME} ${APP_NAME}${APP_PID}${!C}${LVL}\e[0m: $(sed 's/^ \+//g'<<<"${*:2}")")
 LOG=$(sed -z 's/\n$//g'<<<"${MSG}" | sed -z "s/\n/\n${S}/g")
-# shellcheck disable=SC2001
-RAW="${APP_NAME}${APP_PID}${LVL}: $(sed 's/  */ /g'<<<"${*:2}")"
+# Normalize multi-line indent for syslog.
+RAW="${APP_NAME}${APP_PID}${LVL}: $(sed '2,$s/^[[:blank:]]*/    /g'<<<"${*:2}")"
 
 if [[ "$LOG_TO_FILE" == "true" ]]; then
   echo "$LOG" | tee -a "$LOG_FILE"

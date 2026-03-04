@@ -5,28 +5,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
 
 type levelSpec struct {
-	color  string
-	indent int
+	color string
 }
 
 const timeFormat = "2006-01-02T15-04-05Z"
 
 var levelTable = map[string]levelSpec{
-	"EMERGENCY": {color: "\x1b[01;30;41m", indent: 39},
-	"ALERT":     {color: "\x1b[01;31;43m", indent: 35},
-	"CRITICAL":  {color: "\x1b[01;30;48:5:208m", indent: 38},
-	"ERROR":     {color: "\x1b[01;31m", indent: 35},
-	"WARNING":   {color: "\x1b[01;33m", indent: 37},
-	"NOTICE":    {color: "\x1b[01;95m", indent: 36},
-	"INFO":      {color: "\x1b[01;39m", indent: 34},
-	"DEBUG":     {color: "\x1b[01;94m", indent: 35},
-	"SUCCESS":   {color: "\x1b[01;32m", indent: 37},
+	"EMERGENCY": {color: "\x1b[01;30;41m"},
+	"ALERT":     {color: "\x1b[01;31;43m"},
+	"CRITICAL":  {color: "\x1b[01;30;48:5:208m"},
+	"ERROR":     {color: "\x1b[01;31m"},
+	"WARNING":   {color: "\x1b[01;33m"},
+	"NOTICE":    {color: "\x1b[01;95m"},
+	"INFO":      {color: "\x1b[01;39m"},
+	"DEBUG":     {color: "\x1b[01;94m"},
+	"SUCCESS":   {color: "\x1b[01;32m"},
 }
 
 var numericLevelMap = map[string]string{
@@ -70,12 +68,16 @@ func usage() {
 	fmt.Printf("export APP_NAME=myapp; %s WARNING \"Disk usage high\"\n", cmd)
 }
 
-func collapseSpaces(value string) string {
-	re := regexp.MustCompile(` {2,}`)
-	lines := strings.Split(value, "\n")
-	for i := range lines {
-		lines[i] = re.ReplaceAllString(lines[i], " ")
+func normalizeRawMessage(value string) string {
+	if value == "" {
+		return value
 	}
+
+	lines := strings.Split(value, "\n")
+	for i := 1; i < len(lines); i++ {
+		lines[i] = "    " + strings.TrimLeft(lines[i], "\t ")
+	}
+
 	return strings.Join(lines, "\n")
 }
 
@@ -205,7 +207,8 @@ func main() {
 	renderedLevel := spec.color + level + "\x1b[0m"
 	formatted := fmt.Sprintf("%s %s %s%s%s: %s", timestamp, hostname, appName, appPID, renderedLevel, message)
 	formatted = strings.TrimSuffix(formatted, "\n")
-	indent := strings.Repeat(" ", spec.indent)
+	paddingWidth := len(fmt.Sprintf("%s %s %s%s%s:", timestamp, hostname, appName, appPID, level)) + 1
+	indent := strings.Repeat(" ", paddingWidth)
 	logLine := strings.ReplaceAll(formatted, "\n", "\n"+indent)
 
 	if os.Getenv("LOG_TO_FILE") == "true" {
@@ -217,7 +220,7 @@ func main() {
 		fmt.Println(logLine)
 	}
 
-	raw := fmt.Sprintf("%s%s%s: %s", appName, appPID, level, collapseSpaces(message))
+	raw := fmt.Sprintf("%s%s%s: %s", appName, appPID, level, normalizeRawMessage(message))
 	if err := sendSyslog(raw); err != nil && !levelValid {
 		os.Exit(1)
 	}
