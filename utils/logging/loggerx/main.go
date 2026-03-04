@@ -1,11 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -20,13 +20,25 @@ const timeFormat = "2006-01-02T15-04-05Z"
 var levelTable = map[string]levelSpec{
 	"EMERGENCY": {color: "\x1b[01;30;41m", indent: 39},
 	"ALERT":     {color: "\x1b[01;31;43m", indent: 35},
-	"CRITICAL":  {color: "\x1b[01;97;41m", indent: 38},
+	"CRITICAL":  {color: "\x1b[01;30;48:5:208m", indent: 38},
 	"ERROR":     {color: "\x1b[01;31m", indent: 35},
 	"WARNING":   {color: "\x1b[01;33m", indent: 37},
-	"NOTICE":    {color: "\x1b[01;30;107m", indent: 36},
+	"NOTICE":    {color: "\x1b[01;95m", indent: 36},
 	"INFO":      {color: "\x1b[01;39m", indent: 34},
-	"DEBUG":     {color: "\x1b[01;97;46m", indent: 35},
+	"DEBUG":     {color: "\x1b[01;94m", indent: 35},
 	"SUCCESS":   {color: "\x1b[01;32m", indent: 37},
+}
+
+var numericLevelMap = map[string]string{
+	"0": "EMERGENCY",
+	"1": "ALERT",
+	"2": "CRITICAL",
+	"3": "ERROR",
+	"4": "WARNING",
+	"5": "NOTICE",
+	"6": "INFO",
+	"7": "DEBUG",
+	"9": "SUCCESS",
 }
 
 func commandName() string {
@@ -39,44 +51,32 @@ func commandName() string {
 
 func usage() {
 	cmd := commandName()
-	fmt.Fprintf(flag.CommandLine.Output(), "%s - syslog-style logger for better DX\n\n", cmd)
-	fmt.Fprintf(flag.CommandLine.Output(), "Usage:\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  %s <LEVEL> <MESSAGE...>\n\n", cmd)
-	fmt.Fprintf(flag.CommandLine.Output(), "Levels:\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  EMERGENCY ALERT CRITICAL ERROR WARNING NOTICE INFO DEBUG SUCCESS\n\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "Behavior:\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  - Writes colored output to stdout.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  - Sends raw message to syslog via logger.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  - Accepts multi-line messages.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  - Uses APP_NAME from environment when set; otherwise infers caller name.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  - If LOG_TO_FILE=true, also appends formatted output to LOG_FILE.\n\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "Examples:\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  %s INFO \"Service started\"\n", cmd)
-	fmt.Fprintf(flag.CommandLine.Output(), "  APP_NAME=myapp %s WARNING \"Disk usage high\"\n\n", cmd)
-	fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  -h, --help           Show this help and exit\n\n")
-}
-
-func normalizeArgs(args []string) []string {
-	normalized := make([]string, 0, len(args))
-	for _, arg := range args {
-		switch arg {
-		case "--help":
-			normalized = append(normalized, "-h")
-		default:
-			normalized = append(normalized, arg)
-		}
-	}
-	return normalized
-}
-
-func envBool(name string) bool {
-	v := strings.TrimSpace(strings.ToLower(os.Getenv(name)))
-	return v == "1" || v == "true" || v == "yes" || v == "on"
+	fmt.Printf("%s - syslog-style logger for improved developer experience (DX)\n\n", cmd)
+	fmt.Printf("Writes colored output to stdout and sends raw messages to syslog via logger.\n")
+	fmt.Printf("Supports multi-line messages and dynamic application naming.\n\n")
+	fmt.Printf("Usage:\n")
+	fmt.Printf("%s <LEVEL> <MESSAGE...>\n\n", cmd)
+	fmt.Printf("Levels:\n")
+	fmt.Printf("0/EMERGENCY    3/ERROR        6/INFO\n")
+	fmt.Printf("1/ALERT        4/WARNING      7/DEBUG\n")
+	fmt.Printf("2/CRITICAL     5/NOTICE       9/SUCCESS\n\n")
+	fmt.Printf("Environment Variables:\n")
+	fmt.Printf("APP_NAME       Optional. Overrides inferred application name in logs.\n")
+	fmt.Printf("APP_PID        Optional. Overrides inferred PID in logs (e.g., for et/rc forwarding).\n")
+	fmt.Printf("LOG_TO_FILE    If set to \"true\", also appends formatted output to LOG_FILE.\n")
+	fmt.Printf("LOG_FILE       Path to log file when LOG_TO_FILE is enabled.\n\n")
+	fmt.Printf("Examples:\n")
+	fmt.Printf("%s INFO \"Service started\"\n", cmd)
+	fmt.Printf("export APP_NAME=myapp; %s WARNING \"Disk usage high\"\n", cmd)
 }
 
 func collapseSpaces(value string) string {
-	return strings.Join(strings.Fields(value), " ")
+	re := regexp.MustCompile(` {2,}`)
+	lines := strings.Split(value, "\n")
+	for i := range lines {
+		lines[i] = re.ReplaceAllString(lines[i], " ")
+	}
+	return strings.Join(lines, "\n")
 }
 
 func appendFile(path string, text string) error {
@@ -90,17 +90,60 @@ func appendFile(path string, text string) error {
 	return err
 }
 
+func normalizeLevel(value string) (string, bool) {
+	if level, ok := numericLevelMap[value]; ok {
+		return level, true
+	}
+	if _, ok := levelTable[value]; ok {
+		return value, true
+	}
+	return "", false
+}
+
 func inferAppName() string {
 	if appName := strings.TrimSpace(os.Getenv("APP_NAME")); appName != "" {
 		return appName
 	}
-	if parentPath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", os.Getppid())); err == nil {
-		name := filepath.Base(parentPath)
-		if name != "" && name != "loggerx" {
-			return name
+
+	ppid := os.Getppid()
+	envPath := fmt.Sprintf("/proc/%d/task/%d/environ", ppid, ppid)
+	if data, err := os.ReadFile(envPath); err == nil {
+		entries := strings.Split(string(data), "\x00")
+		for _, entry := range entries {
+			if strings.HasPrefix(entry, "_=") {
+				underscore := strings.TrimSpace(strings.TrimPrefix(entry, "_="))
+				if underscore != "" {
+					name := filepath.Base(underscore)
+					if name != "" {
+						if name == "loggerx" {
+							break
+						}
+						return name
+					}
+				}
+				break
+			}
 		}
 	}
-	return filepath.Base(os.Args[0])
+
+	name := commandName()
+	if strings.TrimSpace(name) == "" {
+		name = "loggerx"
+	}
+
+	if name == "loggerx" {
+		cmdlinePath := fmt.Sprintf("/proc/%d/task/%d/cmdline", ppid, ppid)
+		if data, err := os.ReadFile(cmdlinePath); err == nil {
+			first := strings.SplitN(string(data), "\x00", 2)[0]
+			if first = strings.TrimSpace(first); first != "" {
+				if inferred := filepath.Base(first); strings.TrimSpace(inferred) != "" {
+					name = inferred
+				}
+			}
+		}
+	}
+
+	return name
 }
 
 func sendSyslog(raw string) error {
@@ -112,33 +155,40 @@ func sendSyslog(raw string) error {
 }
 
 func main() {
-	flag.CommandLine.SetOutput(os.Stdout)
-	flag.CommandLine.Usage = usage
-
-	help := flag.Bool("h", false, "show help")
-
-	os.Args = append([]string{os.Args[0]}, normalizeArgs(os.Args[1:])...)
-	flag.Parse()
-
-	if *help {
+	if len(os.Args) > 1 && (os.Args[1] == "-h" || os.Args[1] == "--help") {
 		usage()
 		return
 	}
 
-	if flag.NArg() < 2 {
-		fmt.Fprintln(os.Stderr, "error: expected LEVEL and MESSAGE...")
-		fmt.Fprintf(os.Stderr, "try: %s --help\n", commandName())
-		os.Exit(2)
-	}
-
-	level := strings.ToUpper(flag.Arg(0))
-	spec, ok := levelTable[level]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Invalid log level: %q\n", level)
+	if len(os.Args) < 3 {
+		usage()
 		os.Exit(1)
 	}
 
-	message := strings.TrimLeft(strings.Join(flag.Args()[1:], " "), " ")
+	argLevel := os.Args[1]
+	level, levelValid := normalizeLevel(argLevel)
+	if !levelValid {
+		level = "ERROR"
+		argLevel = strings.TrimSpace(argLevel)
+		if argLevel == "" {
+			argLevel = ""
+		}
+		os.Args = []string{os.Args[0], "ERROR", fmt.Sprintf("Invalid log level: '%s'!", argLevel)}
+	}
+
+	spec, exists := levelTable[level]
+	if !exists {
+		fmt.Fprintf(os.Stderr, "Invalid log level: '%s'!\n", level)
+		os.Exit(1)
+	}
+
+	message := strings.TrimLeft(strings.Join(os.Args[2:], " "), " ")
+	messageLines := strings.Split(message, "\n")
+	for i := range messageLines {
+		messageLines[i] = strings.TrimLeft(messageLines[i], " ")
+	}
+	message = strings.Join(messageLines, "\n")
+
 	timestamp := time.Now().UTC().Format(timeFormat)
 	hostname := os.Getenv("HOSTNAME")
 	if strings.TrimSpace(hostname) == "" {
@@ -147,29 +197,32 @@ func main() {
 		}
 	}
 	appName := inferAppName()
-	appPID := fmt.Sprintf("[%d] ", os.Getppid())
+	appPID := os.Getenv("APP_PID")
+	if appPID == "" {
+		appPID = fmt.Sprintf("[%d] ", os.Getppid())
+	}
 
 	renderedLevel := spec.color + level + "\x1b[0m"
 	formatted := fmt.Sprintf("%s %s %s%s%s: %s", timestamp, hostname, appName, appPID, renderedLevel, message)
+	formatted = strings.TrimSuffix(formatted, "\n")
 	indent := strings.Repeat(" ", spec.indent)
 	logLine := strings.ReplaceAll(formatted, "\n", "\n"+indent)
 
-	if envBool("LOG_TO_FILE") {
-		if logFile := strings.TrimSpace(os.Getenv("LOG_FILE")); logFile != "" {
-			fmt.Println(logLine)
-			if err := appendFile(logFile, logLine); err != nil {
-				fmt.Fprintf(os.Stderr, "error: unable to append to log file %q: %v\n", logFile, err)
-				os.Exit(1)
-			}
-		} else {
-			fmt.Println(logLine)
+	if os.Getenv("LOG_TO_FILE") == "true" {
+		fmt.Println(logLine)
+		if logFile := os.Getenv("LOG_FILE"); strings.TrimSpace(logFile) != "" {
+			_ = appendFile(logFile, logLine)
 		}
 	} else {
 		fmt.Println(logLine)
 	}
 
 	raw := fmt.Sprintf("%s%s%s: %s", appName, appPID, level, collapseSpaces(message))
-	if err := sendSyslog(raw); err != nil {
+	if err := sendSyslog(raw); err != nil && !levelValid {
+		os.Exit(1)
+	}
+
+	if !levelValid {
 		os.Exit(1)
 	}
 }

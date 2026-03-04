@@ -3,62 +3,56 @@
 loggerx \- colorized terminal logger with syslog output
 .SH SYNOPSIS
 .B loggerx
-[\fIOPTIONS\fR] \fILEVEL\fR \fIMESSAGE...\fR
+.I LEVEL
+.I MESSAGE...
 .SH DESCRIPTION
 .B loggerx
-prints log entries with a UTC timestamp and level styling.
+prints log entries with a UTC timestamp and level styling, then forwards a raw
+message to syslog via
+.BR logger (1).
 
-It can optionally append output to a file and always attempts to write a raw form
-of the message to syslog.
+It supports multi-line messages and infers application identity from the parent
+process unless overridden via environment.
 .SH LEVELS
-EMERGENCY, ALERT, CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG, SUCCESS
-.SH OPTIONS
+0/EMERGENCY, 1/ALERT, 2/CRITICAL, 3/ERROR, 4/WARNING,
+5/NOTICE, 6/INFO, 7/DEBUG, 9/SUCCESS
+.SH ENVIRONMENT
 .TP
-.B \-\-log\-to\-file
-Append rendered terminal output to a file.
-The default can be set by the
+.B APP_NAME
+Overrides inferred application name in logs.
+.TP
+.B APP_PID
+Overrides inferred PID tag in logs (for forwarding workflows such as et/rc).
+.TP
 .B LOG_TO_FILE
-environment variable.
+If set to
+.B true
+also appends formatted output to
+.BR LOG_FILE .
 .TP
-.B \-\-log\-file \fIPATH\fR
-Path used with
-.BR \-\-log\-to\-file .
-Defaults to
 .B LOG_FILE
-if set, otherwise
-.BR ./loggerx.log .
-.TP
-.B \-\-no\-color
-Disable ANSI colors in terminal output.
+Path used when
+.B LOG_TO_FILE=true
+.
+.SH OPTIONS
 .TP
 .B \-h, \-\-help
 Show help text and exit.
-.SH ENVIRONMENT
-.TP
-.B LOG_TO_FILE
-Boolean default for
-.BR \-\-log\-to\-file 
-(true/false, 1/0, yes/no, on/off).
-.TP
-.B LOG_FILE
-Default path for
-.BR \-\-log\-file .
 .SH EXIT STATUS
 .TP
 .B 0
 Success.
 .TP
 .B 1
-Invalid log level or file logging error.
-.TP
-.B 2
-Invalid command usage.
+Invalid log level.
 .SH EXAMPLES
 .TP
 .B loggerx INFO "service started"
 .TP
-.B loggerx WARNING "cache miss"
+.B loggerx 6 "service started"
 .TP
-.B loggerx --log-to-file --log-file /tmp/app.log ERROR "request failed"
+.B APP_NAME=myapp loggerx WARNING "cache miss"
+.TP
+.B LOG_TO_FILE=true LOG_FILE=/tmp/app.log loggerx ERROR "request failed"
 .SH AUTHOR
 Alex Atkinson and contributors.

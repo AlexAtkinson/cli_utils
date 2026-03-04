@@ -1,35 +1,35 @@
 # loggerx
 
-A colorized terminal logger implemented in Go, with optional file logging and syslog output.
+A colorized terminal logger implemented in Go, with syslog output.
 
 ## Usage
 
 ```bash
-loggerx [options] LEVEL MESSAGE...
+loggerx <LEVEL> <MESSAGE...>
 ```
 
 ### Levels
 
-`EMERGENCY ALERT CRITICAL ERROR WARNING NOTICE INFO DEBUG SUCCESS`
-
-### Options
-
-- `--log-to-file` append rendered output to a log file
-- `--log-file PATH` path for file logging (default: `$LOG_FILE` or `./loggerx.log`)
-- `--no-color` disable ANSI color output
-- `-h`, `--help` show help and exit
+```text
+0/EMERGENCY    3/ERROR        6/INFO
+1/ALERT        4/WARNING      7/DEBUG
+2/CRITICAL     5/NOTICE       9/SUCCESS
+```
 
 ### Environment variables
 
-- `LOG_TO_FILE=true|false` default for `--log-to-file`
-- `LOG_FILE=/path/to/file` default for `--log-file`
+- `APP_NAME`: optional override for inferred application name.
+- `APP_PID`: optional override for inferred PID prefix (for forwarding use cases).
+- `LOG_TO_FILE`: when set to `true`, also appends formatted output to `LOG_FILE`.
+- `LOG_FILE`: path used when `LOG_TO_FILE=true`.
 
 ## Examples
 
 ```bash
 loggerx INFO "service started"
-loggerx WARNING "cache miss on key user:42"
-loggerx --log-to-file --log-file /tmp/app.log ERROR "request failed"
+loggerx 6 "service started"
+export APP_NAME=myapp; loggerx WARNING "disk usage high"
+LOG_TO_FILE=true LOG_FILE=/tmp/myapp.log loggerx ERROR "request failed"
 ```
 
 ## Install

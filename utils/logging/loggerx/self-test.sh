@@ -33,6 +33,15 @@ assert_eq() {
   pass "$name"
 }
 
+assert_not_empty() {
+  local value="$1"
+  local name="$2"
+  if [[ -z "$value" ]]; then
+    fail "$name (value is empty)"
+  fi
+  pass "$name"
+}
+
 go build -o "$BIN" "$SCRIPT_DIR/main.go"
 
 TMP_DIR="$(mktemp -d)"
@@ -63,6 +72,16 @@ assert_contains "$run_out" "hello world" "output includes message"
 raw_syslog="$(cat "$LOGGER_CAPTURE")"
 assert_contains "$raw_syslog" "myapp[" "syslog raw includes app"
 assert_contains "$raw_syslog" "INFO: hello world" "syslog raw includes message"
+
+numeric_out="$(PATH="$TMP_DIR:$PATH" LOGGER_CAPTURE="$LOGGER_CAPTURE" APP_NAME='myapp' HOSTNAME='host1' "$BIN" 6 numeric test)"
+assert_contains "$numeric_out" "INFO" "numeric level maps to INFO"
+
+custom_pid_out="$(PATH="$TMP_DIR:$PATH" LOGGER_CAPTURE="$LOGGER_CAPTURE" APP_NAME='myapp' APP_PID='(pid42) ' HOSTNAME='host1' "$BIN" WARNING custom pid)"
+assert_contains "$custom_pid_out" "myapp(pid42)" "APP_PID passthrough in rendered output"
+
+fallback_host_out="$(PATH="$TMP_DIR:$PATH" LOGGER_CAPTURE="$LOGGER_CAPTURE" APP_NAME='myapp' HOSTNAME='' "$BIN" INFO host fallback)"
+fallback_host="$(awk '{print $2}' <<<"$fallback_host_out")"
+assert_not_empty "$fallback_host" "hostname fallback when HOSTNAME unset"
 
 LOG_FILE="$TMP_DIR/loggerx.log"
 file_out="$(PATH="$TMP_DIR:$PATH" LOGGER_CAPTURE="$LOGGER_CAPTURE" APP_NAME='myapp' HOSTNAME='host1' LOG_TO_FILE='true' LOG_FILE="$LOG_FILE" "$BIN" WARNING disk high)"
