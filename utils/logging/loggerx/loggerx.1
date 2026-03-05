@@ -1,6 +1,6 @@
 .TH LOGGERX 1 "February 2026" "loggerx" "User Commands"
 .SH NAME
-loggerx \- colorized terminal logger with syslog output
+loggerx \- colorized terminal logger with syslog style output
 .SH SYNOPSIS
 .B loggerx
 .I LEVEL
@@ -9,22 +9,8 @@ loggerx \- colorized terminal logger with syslog output
 .B loggerx
 prints log entries with a UTC timestamp and level styling, then forwards a raw
 message to syslog via
-.BR logger (1).
-
-It supports multi-line messages and infers application identity from the parent
-process unless overridden via environment.
-.SH IMPLEMENTATIONS
-The classic implementation is
-.B loggerx.sh
-in the root loggerx directory.
-
-Alternative implementations are available in:
-.TP
-.B loggerx_golang/
-Go implementation.
-.TP
-.B loggerx_rust/
-Rust implementation.
+.BR logger (1). Supports multi-line messages and infers application identity from the parent
+process.
 .SH LEVELS
 0/EMERGENCY, 1/ALERT, 2/CRITICAL, 3/ERROR, 4/WARNING,
 5/NOTICE, 6/INFO, 7/DEBUG, 9/SUCCESS
@@ -50,13 +36,6 @@ Path used when
 .TP
 .B \-h, \-\-help
 Show help text and exit.
-.SH EXIT STATUS
-.TP
-.B 0
-Success.
-.TP
-.B 1
-Invalid log level.
 .SH EXAMPLES
 .TP
 .B loggerx INFO "service started"
@@ -67,4 +46,4 @@ Invalid log level.
 .TP
 .B LOG_TO_FILE=true LOG_FILE=/tmp/app.log loggerx ERROR "request failed"
 .SH AUTHOR
-Alex Atkinson and contributors.
+Alex Atkinson.
