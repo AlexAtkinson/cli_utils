@@ -13,6 +13,18 @@ message to syslog via
 
 It supports multi-line messages and infers application identity from the parent
 process unless overridden via environment.
+.SH IMPLEMENTATIONS
+The classic implementation is
+.B loggerx.sh
+in the root loggerx directory.
+
+Alternative implementations are available in:
+.TP
+.B loggerx_golang/
+Go implementation.
+.TP
+.B loggerx_rust/
+Rust implementation.
 .SH LEVELS
 0/EMERGENCY, 1/ALERT, 2/CRITICAL, 3/ERROR, 4/WARNING,
 5/NOTICE, 6/INFO, 7/DEBUG, 9/SUCCESS

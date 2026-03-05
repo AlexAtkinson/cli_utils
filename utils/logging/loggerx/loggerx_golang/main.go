@@ -63,6 +63,7 @@ func usage() {
 	fmt.Printf("APP_PID        Optional. Overrides inferred PID in logs (e.g., for et/rc forwarding).\n")
 	fmt.Printf("LOG_TO_FILE    If set to \"true\", also appends formatted output to LOG_FILE.\n")
 	fmt.Printf("LOG_FILE       Path to log file when LOG_TO_FILE is enabled.\n\n")
+	fmt.Printf("SYSLOG         If set to \"true\", sends output to syslog as well as stdout.\n\n")
 	fmt.Printf("Examples:\n")
 	fmt.Printf("%s INFO \"Service started\"\n", cmd)
 	fmt.Printf("export APP_NAME=myapp; %s WARNING \"Disk usage high\"\n", cmd)
@@ -212,18 +213,18 @@ func main() {
 	logLine := strings.ReplaceAll(formatted, "\n", "\n"+indent)
 
 	if os.Getenv("LOG_TO_FILE") == "true" {
-		fmt.Println(logLine)
 		if logFile := os.Getenv("LOG_FILE"); strings.TrimSpace(logFile) != "" {
 			_ = appendFile(logFile, logLine)
 		}
-	} else {
 		fmt.Println(logLine)
 	}
 
 	raw := fmt.Sprintf("%s%s%s: %s", appName, appPID, level, normalizeRawMessage(message))
-	if err := sendSyslog(raw); err != nil && !levelValid {
-		os.Exit(1)
+	if os.Getenv("SYSLOG") == "true" {
+		_ = sendSyslog(raw)
 	}
+
+	fmt.Println(logLine)
 
 	if !levelValid {
 		os.Exit(1)

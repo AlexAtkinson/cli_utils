@@ -21,7 +21,7 @@ Behavior:
 
 Examples:
   export TASK="Run tests"
-  false; ${0##*/} $? 0 KILL
+  false; ${0##*/} \$? 0 KILL
 EOF
   exit 0
 fi
@@ -34,6 +34,10 @@ EXIT_DESIRED=$2
 [[ -z "$APP_NAME" || "$APP_NAME" == " " ]] && APP_NAME="${0##*/}"
 [[ "$APP_NAME" == "loggerx" ]] && APP_NAME="$(cat /proc/$PPID/task/$PPID/cmdline | xargs basename 2>/dev/null)"
 export APP_NAME
+
+# Set the PID of the original caller as an environment variable for loggerx.
+APP_PID="[$PPID] "
+export APP_PID
 
 # If TASK is not set, WARN with a hint to export TASK from calling scripts.
 [[ -z "$TASK" ]] && loggerx WARNING "'TASK' not set. 'TASK' must be exported."

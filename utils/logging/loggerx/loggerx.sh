@@ -21,6 +21,7 @@ APP_NAME       Optional. Overrides inferred application name in logs.
 APP_PID        Optional. Overrides inferred PID in logs (e.g., for et/rc forwarding).
 LOG_TO_FILE    If set to "true", also appends formatted output to LOG_FILE.
 LOG_FILE       Path to log file when LOG_TO_FILE is enabled.
+SYSLOG         If set to "true", sends output to syslog as well as stdout.
 
 Examples:
 ${0##*/} INFO "Service started"
@@ -76,8 +77,9 @@ RAW="${APP_NAME}${APP_PID}${LVL}: $(sed '2,$s/^[[:blank:]]*/    /g'<<<"${*:2}")"
 
 if [[ "$LOG_TO_FILE" == "true" ]]; then
   echo "$LOG" | tee -a "$LOG_FILE"
-else
-  echo "$LOG"
+fi
+if [[ "$SYSLOG" == "true" ]]; then
+  echo "$RAW" | logger
 fi
 
-echo "$RAW" | logger
+echo "$LOG"

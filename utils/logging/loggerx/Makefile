@@ -5,17 +5,17 @@ BINARY := loggerx
 all: build
 
 build:
-	go build -o $(BINARY) ./main.go
+	go build -o $(BINARY) ./loggerx_golang/main.go
 
 run:
-	go run ./main.go --help
+	go run ./loggerx_golang/main.go --help
 
 clean:
 	rm -f $(BINARY)
 
 self-test: build
-	chmod +x ./self-test.sh
-	./self-test.sh
+	chmod +x ./loggerx_golang/self-test.sh
+	./loggerx_golang/self-test.sh
 
 install:
 	chmod +x ./install.sh

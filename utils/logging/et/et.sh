@@ -38,6 +38,7 @@ export APP_NAME
 
 # Set the PID of the original caller as an environment variable for potential use in log messages or other logic.
 APP_PID="[$PPID] "
+export APP_PID
 
 # If TASK is not set, WARN with a hint to export TASK from calling scripts.
 [[ -z "$TASK" ]] && loggerx WARNING "'TASK' not set. 'TASK' must be exported."

@@ -89,6 +89,7 @@ func logWithLoggerx(level string, message string) {
 	cmd := exec.Command(loggerxPath, level, message)
 	env := os.Environ()
 	env = append(env, "APP_NAME="+inferAppName())
+	env = append(env, fmt.Sprintf("APP_PID=[%d] ", os.Getppid()))
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

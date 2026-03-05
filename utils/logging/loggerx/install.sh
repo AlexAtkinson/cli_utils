@@ -9,24 +9,59 @@ DEFAULT_MAN_DIR="/usr/local/share/man/man1"
 LOCAL_MAN_DIR="$HOME/.local/share/man/man1"
 GLOBAL_INSTALL=false
 INTERACTIVE=false
+INSTALL_LANG=""
 
 if [[ "$-" =~ i || -t 0 ]]; then
   INTERACTIVE=true
 fi
 
-for arg in "$@"; do
-  case "$arg" in
+usage() {
+  echo "Usage: ${0##*/} [--global] [--lang bash|golang|rust]"
+  echo
+  echo "  --global          Use global defaults (/usr/local/bin and /usr/local/share/man/man1)"
+  echo "  --lang <value>    Select implementation to install (bash, golang, rust)"
+}
+
+normalize_lang() {
+  case "$1" in
+    bash|shell|sh|classic) echo "shell" ;;
+    go|golang) echo "golang" ;;
+    rust|rs) echo "rust" ;;
+    *) return 1 ;;
+  esac
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --global)
       GLOBAL_INSTALL=true
+      shift
+      ;;
+    --lang)
+      if [[ -z "${2:-}" ]]; then
+        echo "Error: --lang requires a value." >&2
+        usage >&2
+        exit 2
+      fi
+      if ! INSTALL_LANG="$(normalize_lang "$2")"; then
+        echo "Error: invalid --lang value '$2'. Expected bash, golang, or rust." >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --lang=*)
+      if ! INSTALL_LANG="$(normalize_lang "${1#*=}")"; then
+        echo "Error: invalid --lang value '${1#*=}'. Expected bash, golang, or rust." >&2
+        exit 2
+      fi
+      shift
       ;;
     -h|--help)
-      echo "Usage: ${0##*/} [--global]"
-      echo
-      echo "  --global   Use global defaults (/usr/local/bin and /usr/local/share/man/man1)"
+      usage
       exit 0
       ;;
     *)
-      echo "Error: unknown option '$arg'" >&2
+      echo "Error: unknown option '$1'" >&2
       echo "Try: ${0##*/} --help" >&2
       exit 2
       ;;
@@ -35,6 +70,27 @@ done
 
 echo "This script installs the 'loggerx' utility and its man page."
 echo
+
+if [[ -z "$INSTALL_LANG" ]]; then
+  if [[ "$INTERACTIVE" == "true" ]]; then
+    echo "Select loggerx implementation to install:"
+    echo "  1) bash (classic loggerx.sh)"
+    echo "  2) golang"
+    echo "  3) rust"
+    read -r -p "Choice [1/2/3] (default: 1): " USER_LANG_CHOICE
+    case "${USER_LANG_CHOICE:-1}" in
+      1) INSTALL_LANG="bash" ;;
+      2) INSTALL_LANG="golang" ;;
+      3) INSTALL_LANG="rust" ;;
+      *)
+        echo "Error: invalid selection '${USER_LANG_CHOICE}'." >&2
+        exit 2
+        ;;
+    esac
+  else
+    INSTALL_LANG="golang"
+  fi
+fi
 
 if [[ "$GLOBAL_INSTALL" != "true" && "$INTERACTIVE" == "true" ]]; then
   read -r -p "Install globally for all users? [y/N]: " USER_GLOBAL_INSTALL
@@ -72,13 +128,41 @@ if [[ "$GLOBAL_INSTALL" == "true" && "$EUID" -ne 0 ]]; then
 fi
 
 echo
-echo "Building loggerx..."
 cd "$SCRIPT_DIR"
-go build -o loggerx ./main.go
+
+case "$INSTALL_LANG" in
+  bash)
+    echo "Preparing loggerx (bash/classic)..."
+    INSTALL_SOURCE="$SCRIPT_DIR/loggerx.sh"
+    ;;
+  golang)
+    echo "Building loggerx (golang)..."
+    go build -o loggerx ./loggerx_golang/main.go
+    INSTALL_SOURCE="$SCRIPT_DIR/loggerx"
+    ;;
+  rust)
+    if ! command -v cargo >/dev/null 2>&1; then
+      echo "Error: cargo is required to build the rust implementation." >&2
+      exit 1
+    fi
+    echo "Building loggerx (rust)..."
+    cargo build --release --manifest-path "$SCRIPT_DIR/loggerx_rust/Cargo.toml"
+    INSTALL_SOURCE="$SCRIPT_DIR/loggerx_rust/target/release/loggerx_rust"
+    ;;
+  *)
+    echo "Error: unsupported install language '$INSTALL_LANG'." >&2
+    exit 2
+    ;;
+esac
+
+if [[ ! -f "$INSTALL_SOURCE" ]]; then
+  echo "Error: expected install source not found: $INSTALL_SOURCE" >&2
+  exit 1
+fi
 
 echo "Installing binary to $INSTALL_DIR..."
 "${SUDO_CMD[@]}" mkdir -p "$INSTALL_DIR"
-"${SUDO_CMD[@]}" cp loggerx "$INSTALL_DIR/loggerx"
+"${SUDO_CMD[@]}" cp "$INSTALL_SOURCE" "$INSTALL_DIR/loggerx"
 "${SUDO_CMD[@]}" chmod +x "$INSTALL_DIR/loggerx"
 
 echo "Installing man page to $MAN_DIR..."
@@ -86,7 +170,7 @@ echo "Installing man page to $MAN_DIR..."
 "${SUDO_CMD[@]}" cp loggerx.1 "$MAN_DIR/loggerx.1"
 
 echo
-echo "loggerx installed successfully."
+echo "loggerx installed successfully (implementation: $INSTALL_LANG)."
 
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
   echo "Warning: '$INSTALL_DIR' is not currently in your PATH."

@@ -90,7 +90,7 @@ echo "Building rc..."
 go build -o "$RC_DIR/rc" "$RC_DIR/main.go"
 
 echo "Building loggerx..."
-go build -o "$LOGGERX_DIR/loggerx" "$LOGGERX_DIR/main.go"
+go build -o "$LOGGERX_DIR/loggerx" "$LOGGERX_DIR/loggerx_golang/main.go"
 
 echo "Installing binaries to $INSTALL_DIR..."
 "${SUDO_CMD[@]}" mkdir -p "$INSTALL_DIR"

@@ -1,6 +1,43 @@
 # loggerx
 
-A colorized terminal logger implemented in Go, with syslog output.
+`loggerx` is a syslog-style terminal logger.
+
+The classic/root implementation in this directory is the shell script:
+
+- `loggerx.sh`
+
+Additional implementations are available:
+
+- `loggerx_golang/` (Go implementation)
+- `loggerx_rust/` (Rust implementation)
+
+Note the performance profile for each:
+
+```bash
+./benchmark.sh -t 10 -n 10000
+    Finished `release` profile [optimized] target(s) in 0.01s
+loggerx benchmark
+iterations=10000 warmup=50 level=INFO syslog=true threads=10 cpu_threads=12 real_logger=false
+
+impl              total_s       avg_ms    ops_per_s
+------------ ------------ ------------ ------------
+shell           35.779641        3.578       279.49
+go              12.744090        1.274       784.68
+rust            10.257245        1.026       974.92
+```
+
+## Project structure
+
+```text
+loggerx/
+├── loggerx.sh              # classic/root implementation
+├── loggerx_golang/         # Go implementation (main.go, self-test.sh, Makefile)
+├── loggerx_rust/           # Rust implementation (Cargo project)
+├── benchmark.sh            # shell vs go vs rust benchmark helper
+├── install.sh
+├── uninstall.sh
+└── loggerx.1
+```
 
 ## Usage
 
@@ -32,21 +69,53 @@ export APP_NAME=myapp; loggerx WARNING "disk usage high"
 LOG_TO_FILE=true LOG_FILE=/tmp/myapp.log loggerx ERROR "request failed"
 ```
 
+## Benchmark
+
+Run from this directory:
+
+```bash
+./benchmark.sh
+```
+
+Optional concurrency per implementation:
+
+```bash
+./benchmark.sh --threads 8
+```
+
+Notes:
+
+- `--threads` controls worker concurrency within one implementation run.
+- Benchmarks for `shell`, `go`, and `rust` always run sequentially (never at the same time) to ensure they don't clobber each other's results.
+- Thread count is capped to available CPU threads. ;)
+
 ## Install
 
 From this directory:
 
 ```bash
-chmod +x install.sh
 ./install.sh
 ```
+
+The installer supports implementation selection:
+
+```bash
+./install.sh --lang bash
+./install.sh --lang golang
+./install.sh --lang rust
+```
+
+Notes:
+
+- If `--lang` is omitted in an interactive shell, `install.sh` prompts which implementation to install.
+- In non-interactive mode, it defaults to the Go implementation.
+- All variants install to the same command name: `loggerx`.
 
 ## Uninstall
 
 From this directory:
 
 ```bash
-chmod +x uninstall.sh
 ./uninstall.sh
 ```
 

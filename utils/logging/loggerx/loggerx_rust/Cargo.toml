@@ -1,0 +1,8 @@
+[package]
+name = "loggerx_rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+libc = "0.2"
