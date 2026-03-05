@@ -172,6 +172,24 @@ echo "Installing man page to $MAN_DIR..."
 echo
 echo "loggerx installed successfully (implementation: $INSTALL_LANG)."
 
+if [[ "$GLOBAL_INSTALL" == "true" && "$INTERACTIVE" == "true" ]]; then
+  LOCAL_BIN_PATH="$LOCAL_BIN_DIR/loggerx"
+  LOCAL_MAN_PATH="$LOCAL_MAN_DIR/loggerx.1"
+
+  if [[ -e "$LOCAL_BIN_PATH" || -e "$LOCAL_MAN_PATH" ]]; then
+    echo
+    echo "A user-local loggerx installation was detected:"
+    [[ -e "$LOCAL_BIN_PATH" ]] && echo "  - $LOCAL_BIN_PATH"
+    [[ -e "$LOCAL_MAN_PATH" ]] && echo "  - $LOCAL_MAN_PATH"
+    read -r -p "Remove user-local installation files now? [y/N]: " REMOVE_LOCAL_INSTALL
+    if [[ "$REMOVE_LOCAL_INSTALL" =~ ^([yY]|[yY][eE][sS])$ ]]; then
+      rm -f "$LOCAL_BIN_PATH" "$LOCAL_MAN_PATH"
+      echo "Removed user-local loggerx installation files."
+      echo "Refresh your shell command lookup/path to pick up the global install (for example: export PATH=\"\$PATH\")."
+    fi
+  fi
+fi
+
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
   echo "Warning: '$INSTALL_DIR' is not currently in your PATH."
   echo "Add it in your shell config, for example:"

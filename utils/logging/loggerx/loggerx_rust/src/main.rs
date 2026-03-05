@@ -55,29 +55,31 @@ fn command_name() -> String {
 
 fn usage() {
     let cmd = command_name();
+    println!();
     println!("{} - syslog-style logger for improved developer experience (DX)", cmd);
     println!();
-    println!("Writes colored output to stdout and sends raw messages to syslog via logger.");
+    println!("Writes output to stdout and sends raw messages to syslog via logger.");
     println!("Supports multi-line messages and dynamic application naming.");
     println!();
     println!("Usage:");
-    println!("{} <LEVEL> <MESSAGE...>", cmd);
+    println!("    {} <LEVEL> <MESSAGE...>", cmd);
     println!();
     println!("Levels:");
-    println!("0/EMERGENCY    3/ERROR        6/INFO");
-    println!("1/ALERT        4/WARNING      7/DEBUG");
-    println!("2/CRITICAL     5/NOTICE       9/SUCCESS");
+    println!("    0/EMERGENCY    3/ERROR        6/INFO");
+    println!("    1/ALERT        4/WARNING      7/DEBUG");
+    println!("    2/CRITICAL     5/NOTICE       9/SUCCESS");
     println!();
     println!("Environment Variables:");
-    println!("APP_NAME       Optional. Overrides inferred application name in logs.");
-    println!("APP_PID        Optional. Overrides inferred PID in logs (e.g., for et/rc forwarding).");
-    println!("LOG_TO_FILE    If set to \"true\", also appends formatted output to LOG_FILE.");
-    println!("LOG_FILE       Path to log file when LOG_TO_FILE is enabled.");
-    println!("SYSLOG         If set to \"true\", sends output to syslog as well as stdout.");
+    println!("    APP_NAME       Optional. Overrides inferred application name in logs.");
+    println!("    APP_PID        Optional. Overrides inferred PID in logs (e.g., for et/rc forwarding).");
+    println!("    LOG_TO_FILE    If set to \"true\", also appends formatted output to LOG_FILE.");
+    println!("    LOG_FILE       Path to log file when LOG_TO_FILE is enabled.");
+    println!("    SYSLOG         If set to \"true\", sends output to syslog as well as stdout.");
     println!();
     println!("Examples:");
-    println!("{} INFO \"Service started\"", cmd);
-    println!("export APP_NAME=myapp; {} WARNING \"Disk usage high\"", cmd);
+    println!("    {} INFO \"Service started\"", cmd);
+    println!("    export APP_NAME=myapp; {} WARNING \"Disk usage high\"", cmd);
+    println!();
 }
 
 fn normalize_level(value: &str) -> Option<String> {

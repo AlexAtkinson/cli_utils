@@ -3,29 +3,31 @@
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   cat <<EOF
+
 ${0##*/} - syslog-style logger for improved developer experience (DX)
 
-Writes colored output to stdout and sends raw messages to syslog via logger.
+Writes output to stdout and sends raw messages to syslog via logger.
 Supports multi-line messages and dynamic application naming.
 
 Usage:
-${0##*/} <LEVEL> <MESSAGE...>
+    ${0##*/} <LEVEL> <MESSAGE...>
 
 Levels:
-0/EMERGENCY    3/ERROR        6/INFO
-1/ALERT        4/WARNING      7/DEBUG
-2/CRITICAL     5/NOTICE       9/SUCCESS
+    0/EMERGENCY    3/ERROR        6/INFO
+    1/ALERT        4/WARNING      7/DEBUG
+    2/CRITICAL     5/NOTICE       9/SUCCESS
 
 Environment Variables:
-APP_NAME       Optional. Overrides inferred application name in logs.
-APP_PID        Optional. Overrides inferred PID in logs (e.g., for et/rc forwarding).
-LOG_TO_FILE    If set to "true", also appends formatted output to LOG_FILE.
-LOG_FILE       Path to log file when LOG_TO_FILE is enabled.
-SYSLOG         If set to "true", sends output to syslog as well as stdout.
+    APP_NAME       Optional. Overrides inferred application name in logs.
+    APP_PID        Optional. Overrides inferred PID in logs (e.g., for et/rc forwarding).
+    LOG_TO_FILE    If set to "true", also appends formatted output to LOG_FILE.
+    LOG_FILE       Path to log file when LOG_TO_FILE is enabled.
+    SYSLOG         If set to "true", sends output to syslog as well as stdout.
 
 Examples:
-${0##*/} INFO "Service started"
-export APP_NAME=myapp; ${0##*/} WARNING "Disk usage high"
+    ${0##*/} INFO "Service started"
+    export APP_NAME=myapp; ${0##*/} WARNING "Disk usage high"
+
 EOF
   exit 0
 fi
