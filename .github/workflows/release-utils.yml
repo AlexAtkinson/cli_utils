@@ -1,9 +1,17 @@
 name: release-utils
 
 on:
-  push:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: Optional product name from .github/release-products.json; leave blank to evaluate all products
+        required: false
+        type: string
+  pull_request:
     branches:
       - main
+    types:
+      - closed
     paths:
       - .github/release-products.json
       - .github/workflows/release-utils.yml
@@ -16,6 +24,7 @@ permissions:
 
 jobs:
   discover-products:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
@@ -32,28 +41,49 @@ jobs:
         run: |
           set -euo pipefail
 
-          before_sha="${{ github.event.before }}"
-          if [[ "$before_sha" == "0000000000000000000000000000000000000000" ]]; then
-            changed_files="$(git ls-tree -r --name-only HEAD)"
-          else
-            changed_files="$(git diff --name-only "$before_sha" "$GITHUB_SHA")"
-          fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            requested_product="${{ inputs.product }}"
 
-          declare -a changed_products=()
-          while IFS=$'\t' read -r product_name product_path; do
-            while IFS= read -r changed_file; do
-              if [[ "$changed_file" == "$product_path" || "$changed_file" == "$product_path/"* ]]; then
-                changed_products+=("$product_name")
-                break
+            if [[ -n "$requested_product" ]]; then
+              matrix="$(jq -c --arg product "$requested_product" '{include: [ .[] | select(.name == $product) ]}' .github/release-products.json)"
+              if [[ "$(jq '.include | length' <<< "$matrix")" == "0" ]]; then
+                echo "unknown product: $requested_product" >&2
+                exit 1
               fi
-            done <<< "$changed_files"
-          done < <(jq -r '.[] | [.name, .path] | @tsv' .github/release-products.json)
-
-          if [[ ${#changed_products[@]} -eq 0 ]]; then
-            matrix='{"include":[]}'
+            else
+              matrix="$(jq -c '{include: .}' .github/release-products.json)"
+            fi
           else
-            names_json="$(printf '%s\n' "${changed_products[@]}" | jq -R . | jq -s .)"
-            matrix="$(jq -c --argjson names "$names_json" '{include: [ .[] | select(.name as $name | $names | index($name)) ]}' .github/release-products.json)"
+            before_sha="${{ github.event.pull_request.base.sha }}"
+            after_sha="${{ github.event.pull_request.merge_commit_sha || github.sha }}"
+
+            if [[ -z "$after_sha" || "$after_sha" == "null" ]]; then
+              echo "merged pull request is missing merge_commit_sha" >&2
+              exit 1
+            fi
+
+            if [[ "$before_sha" == "0000000000000000000000000000000000000000" ]]; then
+              changed_files="$(git ls-tree -r --name-only HEAD)"
+            else
+              changed_files="$(git diff --name-only "$before_sha" "$after_sha")"
+            fi
+
+            declare -a changed_products=()
+            while IFS=$'\t' read -r product_name product_path; do
+              while IFS= read -r changed_file; do
+                if [[ "$changed_file" == "$product_path" || "$changed_file" == "$product_path/"* ]]; then
+                  changed_products+=("$product_name")
+                  break
+                fi
+              done <<< "$changed_files"
+            done < <(jq -r '.[] | [.name, .path] | @tsv' .github/release-products.json)
+
+            if [[ ${#changed_products[@]} -eq 0 ]]; then
+              matrix='{"include":[]}'
+            else
+              names_json="$(printf '%s\n' "${changed_products[@]}" | jq -R . | jq -s .)"
+              matrix="$(jq -c --argjson names "$names_json" '{include: [ .[] | select(.name as $name | $names | index($name)) ]}' .github/release-products.json)"
+            fi
           fi
 
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
@@ -61,7 +91,7 @@ jobs:
 
   release:
     needs: discover-products
-    if: needs.discover-products.outputs.count != '0'
+    if: (github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true) && needs.discover-products.outputs.count != '0'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
