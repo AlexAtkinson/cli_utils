@@ -119,3 +119,4 @@ It validates help output, Markdown rendering, framed ASCII output, and state per
 ## Releases
 
 Merged pull requests that touch this directory publish a scoped GitHub Release source archive for `fmt-table-py`.
+Releases are generated only from merged pull requests into `main`.

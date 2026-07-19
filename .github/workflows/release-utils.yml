@@ -97,8 +97,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="${{ steps.version.outputs.new-version }}"
-          previous_version="${{ steps.version.outputs.previous-version }}"
+          prefix="${{ matrix.name }}_"
+          raw_version="${{ steps.version.outputs.new-version }}"
+          raw_previous_version="${{ steps.version.outputs.previous-version }}"
+
+          version="${raw_version#${prefix}}"
+          previous_version="${raw_previous_version#${prefix}}"
           tag_name="${{ matrix.name }}_${version}"
 
           if git rev-parse -q --verify "refs/tags/${tag_name}" >/dev/null; then
@@ -114,6 +118,8 @@ jobs:
           fi
 
           echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "previous_version=$previous_version" >> "$GITHUB_OUTPUT"
           echo "release_required=$release_required" >> "$GITHUB_OUTPUT"
 
       - name: Package source release asset
@@ -125,7 +131,7 @@ jobs:
           scripts/package-release.sh \
             "${{ matrix.name }}" \
             "${{ matrix.path }}" \
-            "${{ steps.version.outputs.new-version }}" \
+            "${{ steps.release-plan.outputs.version }}" \
             dist
 
       - name: Publish GitHub release
@@ -133,14 +139,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release-plan.outputs.tag_name }}
-          name: ${{ matrix.name }} v${{ steps.version.outputs.new-version }}
+          name: ${{ matrix.name }} v${{ steps.release-plan.outputs.version }}
           generate_release_notes: true
           files: |
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}.tar.gz
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-SHA256SUMS.txt
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}.tar.gz
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}-SHA256SUMS.txt
       - name: Set up Go
         if: steps.release-plan.outputs.release_required == 'true' && matrix.release.kind == 'go'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: stable
 
@@ -165,7 +171,7 @@ jobs:
             scripts/package-release.sh \
               '${{ matrix.name }}' \
               '${{ matrix.path }}' \
-              '${{ steps.version.outputs.new-version }}' \
+              '${{ steps.release-plan.outputs.version }}' \
               dist \
               '${{ matrix.release.binary }}' \
               "$goos" \
@@ -179,9 +185,9 @@ jobs:
         with:
           tag_name: ${{ steps.release-plan.outputs.tag_name }}
           files: |
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-linux-amd64.tar.gz
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-linux-amd64-SHA256SUMS.txt
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-darwin-amd64.tar.gz
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-darwin-amd64-SHA256SUMS.txt
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-windows-amd64.tar.gz
-            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-windows-amd64-SHA256SUMS.txt
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}-linux-amd64.tar.gz
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}-linux-amd64-SHA256SUMS.txt
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}-darwin-amd64.tar.gz
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}-darwin-amd64-SHA256SUMS.txt
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}-windows-amd64.tar.gz
+            dist/${{ matrix.name }}-${{ steps.release-plan.outputs.version }}-windows-amd64-SHA256SUMS.txt

@@ -53,3 +53,4 @@ man md-add-copyright
 ## Releases
 
 Merged pull requests that touch this directory publish a scoped GitHub Release source archive for `md-add-copyright`.
+Releases are generated only from merged pull requests into `main`.

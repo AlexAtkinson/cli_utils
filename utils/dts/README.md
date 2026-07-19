@@ -49,3 +49,4 @@ man dts
 ## Releases
 
 Merged pull requests that touch this directory publish a scoped GitHub Release for `dts`, including Linux, macOS, and Windows amd64 archives.
+Releases are generated only from merged pull requests into `main`.
