@@ -72,7 +72,7 @@ GitHub Releases are published per utility from [release-utils.yml](/home/alex/gi
 Each product is versioned independently with the GitOps AutoVer action in mono-repo mode:
 
 - Tag format: `<product>_<major.minor.patch>`
-- Current products: `dts`, `fmt-center`, `fmt-table`, `fmt-table-py`, `et`, `loggerx`, `rc`, `markdown-copyright-footer`
+- Current products: `dts`, `fmt-center`, `fmt-table`, `et`, `loggerx`, `rc`
 - Every product publishes a source archive: `<product>-<version>.tar.gz` plus a matching SHA256 file
 - Go products also publish native archives for Linux, macOS, and Windows: `<product>-<version>-<os>-amd64>.tar.gz`
 
@@ -85,18 +85,9 @@ Cross-platform binary releases are currently produced for:
 - `loggerx`
 - `rc`
 
-Source-only releases are currently produced for:
-
-- `fmt-table-py`
-- `markdown-copyright-footer`
-
 Operational requirements for automatic versioning:
 
 - Changes must land on `main` through merge commits, or through squash merges that retain the PR number and use semver labels.
 - Branch names should follow the action's increment rules such as `feature/...`, `enhancement/...`, `fix/...`, or `ops/...`.
-- Because the existing history is mostly linear, bootstrap the first release tag for each utility manually before relying on automated increments.
-
-Use [bootstrap-release.yml](/home/alex/git/alexatkinson/cli_utils/.github/workflows/bootstrap-release.yml) once per utility to create the first tag and release, for example `dts_0.1.0` or `loggerx_0.1.0`.
-
-After the initial bootstrap tags exist, any push to `main` that changes one of the utility paths above will evaluate only that utility and publish or update its GitHub Release.
+After a merged pull request changes one of the utility paths above, the workflow evaluates only that utility and publishes or updates its GitHub Release.
 
