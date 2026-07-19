@@ -66,3 +66,7 @@ After installation:
 ```bash
 man et
 ```
+
+## Releases
+
+Merged pull requests that touch this directory publish a scoped GitHub Release for `et`, including Linux, macOS, and Windows amd64 archives.

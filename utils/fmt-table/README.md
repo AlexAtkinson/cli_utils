@@ -83,3 +83,7 @@ After installation:
 ```bash
 man fmt-table
 ```
+
+## Releases
+
+Merged pull requests that touch this directory publish a scoped GitHub Release for `fmt-table`, including Linux, macOS, and Windows amd64 archives.
