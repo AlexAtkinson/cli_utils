@@ -21,6 +21,7 @@ type stateData struct {
 	TitleRow              []string   `json:"title_row"`
 	ContentRows           [][]string `json:"content_rows"`
 	WidthArg              string     `json:"width_arg"`
+	AlignArg              string     `json:"align_arg"`
 	Frame                 bool       `json:"frame"`
 	End                   bool       `json:"end"`
 	OutputFormat          string     `json:"output_format"`
@@ -46,6 +47,7 @@ func defaultState() stateData {
 		TitleRow:              []string{},
 		ContentRows:           [][]string{},
 		WidthArg:              "dynamic",
+		AlignArg:              "",
 		Frame:                 false,
 		End:                   false,
 		OutputFormat:          "markdown",
@@ -64,6 +66,7 @@ func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "  -t, --title-row TEXT     Comma-separated values for title row\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -r, --row TEXT           Comma-separated values for content row (repeatable)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -w, --width STR          Width strategy: dynamic|equal|full|INT\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  -A, --align TEXT         Column alignment list: left|center|right or l|c|r (comma-separated)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -f, --frame              Accepted for compatibility (markdown-only output)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -e, --end                Accepted for compatibility (markdown-only output)\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -a, --append             Append mode (skip top border on framed append)\n")
@@ -77,6 +80,8 @@ func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "Examples:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  Create a table with header and rows:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "    fmt-table -n -t \"Name,Role\" -r \"Alice,Engineer\" -r \"Bob,Manager\" -f\n\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  Right-align a numeric column:\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "    fmt-table -n -t \"Name,Count\" -r \"Apples,12\" -A \"l,r\"\n\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  Append rows to existing session:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "    fmt-table -r \"Charlie,Analyst\" -fa\n")
 }
@@ -91,6 +96,8 @@ func normalizeArgs(args []string) []string {
 			normalized = append(normalized, "-r")
 		case "--width":
 			normalized = append(normalized, "-w")
+		case "--align":
+			normalized = append(normalized, "-A")
 		case "--frame":
 			normalized = append(normalized, "-f")
 		case "--end":
@@ -155,6 +162,101 @@ func parseRow(rowText string) []string {
 
 func stripANSI(text string) string {
 	return ansiPattern.ReplaceAllString(text, "")
+}
+
+type columnAlignment string
+
+const (
+	alignLeft   columnAlignment = "left"
+	alignCenter columnAlignment = "center"
+	alignRight  columnAlignment = "right"
+)
+
+func parseAlignmentArg(raw string) ([]columnAlignment, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(raw, ",")
+	alignments := make([]columnAlignment, 0, len(parts))
+	for _, part := range parts {
+		token := strings.ToLower(strings.TrimSpace(part))
+		switch token {
+		case "l", "left":
+			alignments = append(alignments, alignLeft)
+		case "c", "center", "centre":
+			alignments = append(alignments, alignCenter)
+		case "r", "right":
+			alignments = append(alignments, alignRight)
+		case "":
+			return nil, fmt.Errorf("empty alignment in %q", raw)
+		default:
+			return nil, fmt.Errorf("invalid alignment %q", part)
+		}
+	}
+
+	return alignments, nil
+}
+
+func expandAlignments(parsed []columnAlignment, cols int) []columnAlignment {
+	alignments := make([]columnAlignment, cols)
+	if len(parsed) == 0 {
+		for idx := range alignments {
+			alignments[idx] = alignLeft
+		}
+		return alignments
+	}
+
+	last := parsed[len(parsed)-1]
+	for idx := 0; idx < cols; idx++ {
+		if idx < len(parsed) {
+			alignments[idx] = parsed[idx]
+			continue
+		}
+		alignments[idx] = last
+	}
+	return alignments
+}
+
+func padCell(cell string, width int, alignment columnAlignment) string {
+	visible := len(stripANSI(cell))
+	padding := width - visible
+	if padding < 0 {
+		padding = 0
+	}
+
+	switch alignment {
+	case alignRight:
+		return strings.Repeat(" ", padding) + cell
+	case alignCenter:
+		left := padding / 2
+		right := padding - left
+		return strings.Repeat(" ", left) + cell + strings.Repeat(" ", right)
+	default:
+		return cell + strings.Repeat(" ", padding)
+	}
+}
+
+func markdownSeparator(width int, alignment columnAlignment) string {
+	if width < 1 {
+		width = 1
+	}
+	if width == 1 {
+		return "-"
+	}
+
+	switch alignment {
+	case alignRight:
+		return strings.Repeat("-", width-1) + ":"
+	case alignCenter:
+		if width == 2 {
+			return "::"
+		}
+		return ":" + strings.Repeat("-", width-2) + ":"
+	default:
+		return strings.Repeat("-", width)
+	}
 }
 
 func getTerminalWidth() int {
@@ -261,14 +363,14 @@ func drawSeparator(colWidths []int) string {
 	return "+" + strings.Join(parts, "+") + "+"
 }
 
-func renderASCIILines(titleRow []string, contentRows [][]string, colWidths []int, frame bool, end bool, appendMode bool) []string {
+func renderASCIILines(titleRow []string, contentRows [][]string, colWidths []int, alignments []columnAlignment, frame bool, end bool, appendMode bool) []string {
 	lines := make([]string, 0)
 	maxCols := len(colWidths)
 	rowToLine := func(row []string) string {
 		row = normalizeRow(row, maxCols)
 		cells := make([]string, 0, maxCols)
 		for idx := 0; idx < maxCols; idx++ {
-			cells = append(cells, fmt.Sprintf(" %-*s ", colWidths[idx], row[idx]))
+			cells = append(cells, " "+padCell(row[idx], colWidths[idx], alignments[idx])+" ")
 		}
 		return "|" + strings.Join(cells, "|") + "|"
 	}
@@ -305,7 +407,7 @@ func renderASCIILines(titleRow []string, contentRows [][]string, colWidths []int
 	return lines
 }
 
-func renderMarkdownLines(titleRow []string, contentRows [][]string, colWidths []int) []string {
+func renderMarkdownLines(titleRow []string, contentRows [][]string, colWidths []int, alignments []columnAlignment) []string {
 	lines := make([]string, 0)
 	maxCols := len(colWidths)
 	rowToLine := func(row []string, bold bool) string {
@@ -314,16 +416,11 @@ func renderMarkdownLines(titleRow []string, contentRows [][]string, colWidths []
 		for idx := 0; idx < maxCols; idx++ {
 			cell := row[idx]
 			if bold {
-				visible := len(stripANSI(cell))
-				pad := colWidths[idx] - visible
-				if pad < 0 {
-					pad = 0
-				}
 				styled := "\x1b[1m" + cell + "\x1b[0m"
-				cells = append(cells, " "+styled+strings.Repeat(" ", pad)+" ")
+				cells = append(cells, " "+padCell(styled, colWidths[idx], alignments[idx])+" ")
 				continue
 			}
-			cells = append(cells, fmt.Sprintf(" %-*s ", colWidths[idx], cell))
+			cells = append(cells, " "+padCell(cell, colWidths[idx], alignments[idx])+" ")
 		}
 		return "|" + strings.Join(cells, "|") + "|"
 	}
@@ -331,8 +428,8 @@ func renderMarkdownLines(titleRow []string, contentRows [][]string, colWidths []
 	if len(titleRow) > 0 {
 		lines = append(lines, rowToLine(titleRow, true))
 		sepParts := make([]string, 0, maxCols)
-		for _, width := range colWidths {
-			sepParts = append(sepParts, fmt.Sprintf(" %s ", strings.Repeat("-", width)))
+		for idx, width := range colWidths {
+			sepParts = append(sepParts, fmt.Sprintf(" %s ", markdownSeparator(width, alignments[idx])))
 		}
 		lines = append(lines, "|"+strings.Join(sepParts, "|")+"|")
 	}
@@ -413,6 +510,9 @@ func loadState() stateData {
 	if state.WidthArg == "" {
 		state.WidthArg = "dynamic"
 	}
+	if state.AlignArg == "left" {
+		state.AlignArg = ""
+	}
 	if state.OutputFormat == "" {
 		state.OutputFormat = "markdown"
 	}
@@ -466,6 +566,9 @@ func mergeState(args parsedArgs) (stateData, bool) {
 	if args.WidthArg != "" {
 		state.WidthArg = args.WidthArg
 	}
+	if args.AlignArg != "" {
+		state.AlignArg = args.AlignArg
+	}
 	if args.Frame {
 		state.Frame = true
 	}
@@ -481,6 +584,7 @@ type parsedArgs struct {
 	TitleRow         string
 	Rows             []string
 	WidthArg         string
+	AlignArg         string
 	Frame            bool
 	End              bool
 	Append           bool
@@ -504,6 +608,7 @@ func parseArgs() (parsedArgs, error) {
 	flag.StringVar(&args.TitleRow, "t", "", "title row")
 	flag.Var(&rows, "r", "content row")
 	flag.StringVar(&args.WidthArg, "w", "dynamic", "width strategy")
+	flag.StringVar(&args.AlignArg, "A", "", "column alignment list")
 	flag.BoolVar(&args.Frame, "f", false, "frame")
 	flag.BoolVar(&args.End, "e", false, "end border")
 	flag.BoolVar(&args.Append, "a", false, "append mode")
@@ -525,6 +630,9 @@ func parseArgs() (parsedArgs, error) {
 
 	args.Rows = rows
 	args.UnexpectedPosArg = flag.CommandLine.Args()
+	if _, err := parseAlignmentArg(args.AlignArg); err != nil {
+		return args, err
+	}
 	return args, nil
 }
 
@@ -572,6 +680,11 @@ func main() {
 	titleRow := state.TitleRow
 	contentRows := state.ContentRows
 	widthArg := state.WidthArg
+	parsedAlignments, err := parseAlignmentArg(state.AlignArg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(2)
+	}
 	_ = state.Frame
 	_ = state.End
 	_ = state.OutputFormat
@@ -583,7 +696,8 @@ func main() {
 	appendContext := hadExisting && len(args.Rows) > 0 && args.TitleRow == ""
 
 	colWidths := calculateColumnWidths(titleRow, contentRows, widthArg)
-	lines := renderMarkdownLines(titleRow, contentRows, colWidths)
+	alignments := expandAlignments(parsedAlignments, len(colWidths))
+	lines := renderMarkdownLines(titleRow, contentRows, colWidths, alignments)
 
 	if interactiveStdout {
 		previous := state.LastRenderedLines
