@@ -115,3 +115,7 @@ Run the built-in regression check script:
 ```
 
 It validates help output, Markdown rendering, framed ASCII output, and state persistence behavior.
+
+## Releases
+
+Merged pull requests that touch this directory publish a scoped GitHub Release source archive for `fmt-table-py`.

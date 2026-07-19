@@ -64,3 +64,7 @@ After installation:
 ```bash
 man rc
 ```
+
+## Releases
+
+Merged pull requests that touch this directory publish a scoped GitHub Release for `rc`, including Linux, macOS, and Windows amd64 archives.
