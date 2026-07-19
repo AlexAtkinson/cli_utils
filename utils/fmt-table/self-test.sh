@@ -63,6 +63,13 @@ markdown_only_expected=$'| \e[1mName\e[0m  | \e[1mRole\e[0m     |
 markdown_only_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -n -t "Name,Role" -r "Alice,Engineer" -r "Bob,Manager" -f | cat)"
 assert_eq "$markdown_only_expected" "$markdown_only_actual" "markdown-only output even with frame flag"
 
+alignment_expected=$'| \e[1mItem\e[0m   | \e[1mCount\e[0m |
+| ------ | ----: |
+| Apples |    12 |
+| Pears  |     3 |'
+alignment_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -n -t "Item,Count" -r "Apples,12" -r "Pears,3" -A "l,r")"
+assert_eq "$alignment_expected" "$alignment_actual" "column alignment output"
+
 HOME="$TMP_HOME" "$FMT_TABLE" -c >/dev/null
 HOME="$TMP_HOME" "$FMT_TABLE" -n -t "Fruit,Color" -r "Apple,Red" -f >/dev/null
 frame_append_expected=$'| \e[1mFruit\e[0m  | \e[1mColor\e[0m  |
@@ -80,5 +87,14 @@ markdown_locked_expected=$'| \e[1mM1\e[0m | \e[1mM2\e[0m |
 | C  | D  |'
 markdown_locked_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -r "C,D")"
 assert_eq "$markdown_locked_expected" "$markdown_locked_actual" "markdown session format lock"
+
+HOME="$TMP_HOME" "$FMT_TABLE" -c >/dev/null
+HOME="$TMP_HOME" "$FMT_TABLE" -n -t "Item,Count" -r "Apples,12" -A "l,r" >/dev/null
+alignment_locked_expected=$'| \e[1mItem\e[0m   | \e[1mCount\e[0m |
+| ------ | ----: |
+| Apples |    12 |
+| Pears  |     3 |'
+alignment_locked_actual="$(HOME="$TMP_HOME" "$FMT_TABLE" -r "Pears,3")"
+assert_eq "$alignment_locked_expected" "$alignment_locked_actual" "alignment session lock"
 
 echo "All fmt-table self-tests passed."

@@ -27,13 +27,6 @@
       }
   },
   {
-    "name": "fmt-table-py",
-      "path": "utils/fmt-table-py",
-      "release": {
-        "kind": "source"
-      }
-  },
-  {
     "name": "et",
       "path": "utils/logging/et",
       "release": {
@@ -58,13 +51,6 @@
         "kind": "go",
         "binary": "rc",
         "entrypoint": "utils/logging/rc/main.go"
-      }
-  },
-  {
-    "name": "markdown-copyright-footer",
-      "path": "utils/markdown-copyright-footer",
-      "release": {
-        "kind": "source"
       }
   }
 ]

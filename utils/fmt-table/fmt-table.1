@@ -27,6 +27,21 @@ Width strategy:
 .B full
 , or integer width.
 .TP
+.BR -A , " --align " TEXT
+Comma-separated column alignment list using
+.B left
+,
+.B center
+,
+.B right
+or the short forms
+.B l
+,
+.B c
+,
+.B r
+.
+.TP
 .BR -f , " --frame"
 Accepted for compatibility (markdown-only output).
 .TP
@@ -67,6 +82,8 @@ Persisted table session state.
 .B fmt-table -r "Test,Queued"
 .PP
 .B fmt-table -n -m -t "A,B" -r "1,2"
+.PP
+.B fmt-table -n -t "Item,Count" -r "Apples,12" -A "l,r"
 .SH EXIT STATUS
 .TP
 .B 0

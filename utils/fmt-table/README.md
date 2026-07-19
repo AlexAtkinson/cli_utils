@@ -20,6 +20,7 @@ fmt-table [options]
 - `-t`, `--title-row` comma-separated title row
 - `-r`, `--row` comma-separated content row (repeatable)
 - `-w`, `--width` `dynamic`, `equal`, `full`, or integer width
+- `-A`, `--align` comma-separated column alignment list using `left`, `center`, `right`, or the short forms `l`, `c`, `r`
 - `-f`, `--frame` compatibility flag (accepted; markdown-only output)
 - `-e`, `--end` compatibility flag (accepted; markdown-only output)
 - `-a`, `--append` append mode (compatibility behavior)
@@ -43,6 +44,9 @@ fmt-table -r "Test,Queued"
 # Markdown session (default)
 fmt-table -n -m -t "A,B" -r "1,2"
 fmt-table -r "3,4"
+
+# Right-align a numeric column
+fmt-table -n -t "Item,Count" -r "Apples,12" -r "Pears,3" -A "l,r"
 ```
 
 ## State file
