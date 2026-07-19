@@ -1,0 +1,155 @@
+name: bootstrap-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: Product name from .github/release-products.json
+        required: true
+        type: string
+      version:
+        description: Initial semantic version without a v prefix
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    outputs:
+      product: ${{ steps.validate.outputs.product }}
+      product_path: ${{ steps.validate.outputs.product_path }}
+      product_kind: ${{ steps.validate.outputs.product_kind }}
+      product_binary: ${{ steps.validate.outputs.product_binary }}
+      product_entrypoint: ${{ steps.validate.outputs.product_entrypoint }}
+      tag_name: ${{ steps.validate.outputs.tag_name }}
+      version: ${{ inputs.version }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate bootstrap inputs
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          product="${{ inputs.product }}"
+          version="${{ inputs.version }}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must be a semantic version like 0.1.0" >&2
+            exit 1
+          fi
+
+          product_json="$(jq -c --arg product "$product" '.[] | select(.name == $product)' .github/release-products.json)"
+          if [[ -z "$product_json" ]]; then
+            echo "unknown product: $product" >&2
+            exit 1
+          fi
+
+          product_path="$(jq -r '.path' <<< "$product_json")"
+          product_kind="$(jq -r '.release.kind' <<< "$product_json")"
+          product_binary="$(jq -r '.release.binary // empty' <<< "$product_json")"
+          product_entrypoint="$(jq -r '.release.entrypoint // empty' <<< "$product_json")"
+
+          tag_name="${product}_${version}"
+          if git rev-parse -q --verify "refs/tags/${tag_name}" >/dev/null; then
+            echo "tag already exists: $tag_name" >&2
+            exit 1
+          fi
+
+          echo "product=$product" >> "$GITHUB_OUTPUT"
+          echo "product_path=$product_path" >> "$GITHUB_OUTPUT"
+          echo "product_kind=$product_kind" >> "$GITHUB_OUTPUT"
+          echo "product_binary=$product_binary" >> "$GITHUB_OUTPUT"
+          echo "product_entrypoint=$product_entrypoint" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+
+      - name: Package release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/package-release.sh
+          scripts/package-release.sh \
+            "${{ inputs.product }}" \
+            "${{ steps.validate.outputs.product_path }}" \
+            "${{ inputs.version }}" \
+            dist
+
+      - name: Publish bootstrap GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.validate.outputs.tag_name }}
+          name: ${{ inputs.product }} v${{ inputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/${{ inputs.product }}-${{ inputs.version }}.tar.gz
+            dist/${{ inputs.product }}-${{ inputs.version }}-SHA256SUMS.txt
+
+  bootstrap-go-binaries:
+    needs: bootstrap
+    if: needs.bootstrap.outputs.product_kind == 'go'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: darwin
+            goarch: amd64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Build binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+
+          binary_name='${{ needs.bootstrap.outputs.product_binary }}'
+          binary_path="build/${binary_name}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [[ '${{ matrix.goos }}' == 'windows' ]]; then
+            binary_path+='.exe'
+          fi
+
+          GOOS='${{ matrix.goos }}' GOARCH='${{ matrix.goarch }}' go build -o "$binary_path" '${{ needs.bootstrap.outputs.product_entrypoint }}'
+          echo "binary_path=$binary_path" >> "$GITHUB_ENV"
+
+      - name: Package binary release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/package-release.sh
+          scripts/package-release.sh \
+            '${{ needs.bootstrap.outputs.product }}' \
+            '${{ needs.bootstrap.outputs.product_path }}' \
+            '${{ needs.bootstrap.outputs.version }}' \
+            dist \
+            '${{ needs.bootstrap.outputs.product_binary }}' \
+            '${{ matrix.goos }}' \
+            '${{ matrix.goarch }}' \
+            "$binary_path"
+
+      - name: Upload binary assets to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.bootstrap.outputs.tag_name }}
+          files: |
+            dist/${{ needs.bootstrap.outputs.product }}-${{ needs.bootstrap.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+            dist/${{ needs.bootstrap.outputs.product }}-${{ needs.bootstrap.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}-SHA256SUMS.txt

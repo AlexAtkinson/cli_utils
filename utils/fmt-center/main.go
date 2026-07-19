@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"unicode/utf8"
-	"unsafe"
 )
 
 func usage() {
@@ -52,23 +52,53 @@ func getTerminalWidth() int {
 }
 
 func ttyCols(fd uintptr) int {
-	ws := &struct {
-		Row    uint16
-		Col    uint16
-		Xpixel uint16
-		Ypixel uint16
-	}{}
+	_ = fd
 
-	_, _, errno := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		fd,
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(ws)),
-	)
-	if errno != 0 || ws.Col == 0 {
+	if runtime.GOOS == "windows" {
+		return windowsConsoleCols()
+	}
+
+	cmd := exec.Command("stty", "size")
+	cmd.Stdin = os.Stdin
+	out, err := cmd.Output()
+	if err != nil {
 		return 0
 	}
-	return int(ws.Col)
+
+	fields := strings.Fields(string(out))
+	if len(fields) != 2 {
+		return 0
+	}
+
+	cols, err := strconv.Atoi(fields[1])
+	if err != nil || cols <= 0 {
+		return 0
+	}
+
+	return cols
+}
+
+func windowsConsoleCols() int {
+	cmd := exec.Command("cmd", "/c", "mode con")
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	for _, line := range strings.Split(string(out), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "Columns:") {
+			continue
+		}
+
+		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "Columns:"))
+		cols, convErr := strconv.Atoi(value)
+		if convErr == nil && cols > 0 {
+			return cols
+		}
+	}
+
+	return 0
 }
 
 func wrapText(text string, width int) []string {

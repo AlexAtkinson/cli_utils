@@ -1,0 +1,70 @@
+[
+  {
+    "name": "dts",
+      "path": "utils/dts",
+      "release": {
+        "kind": "go",
+        "binary": "dts",
+        "entrypoint": "utils/dts/main.go"
+      }
+  },
+  {
+    "name": "fmt-center",
+      "path": "utils/fmt-center",
+      "release": {
+        "kind": "go",
+        "binary": "fmt-center",
+        "entrypoint": "utils/fmt-center/main.go"
+      }
+  },
+  {
+    "name": "fmt-table",
+      "path": "utils/fmt-table",
+      "release": {
+        "kind": "go",
+        "binary": "fmt-table",
+        "entrypoint": "utils/fmt-table/main.go"
+      }
+  },
+  {
+    "name": "fmt-table-py",
+      "path": "utils/fmt-table-py",
+      "release": {
+        "kind": "source"
+      }
+  },
+  {
+    "name": "et",
+      "path": "utils/logging/et",
+      "release": {
+        "kind": "go",
+        "binary": "et",
+        "entrypoint": "utils/logging/et/main.go"
+      }
+  },
+  {
+    "name": "loggerx",
+      "path": "utils/logging/loggerx",
+      "release": {
+        "kind": "go",
+        "binary": "loggerx",
+        "entrypoint": "utils/logging/loggerx/loggerx_golang/main.go"
+      }
+  },
+  {
+    "name": "rc",
+      "path": "utils/logging/rc",
+      "release": {
+        "kind": "go",
+        "binary": "rc",
+        "entrypoint": "utils/logging/rc/main.go"
+      }
+  },
+  {
+    "name": "markdown-copyright-footer",
+      "path": "utils/markdown-copyright-footer",
+      "release": {
+        "kind": "source"
+      }
+  }
+]

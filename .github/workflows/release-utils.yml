@@ -1,0 +1,177 @@
+name: release-utils
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/release-products.json
+      - .github/workflows/release-utils.yml
+      - scripts/package-release.sh
+      - utils/**
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  discover-products:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      count: ${{ steps.discover.outputs.count }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Discover changed products
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          before_sha="${{ github.event.before }}"
+          if [[ "$before_sha" == "0000000000000000000000000000000000000000" ]]; then
+            changed_files="$(git ls-tree -r --name-only HEAD)"
+          else
+            changed_files="$(git diff --name-only "$before_sha" "$GITHUB_SHA")"
+          fi
+
+          declare -a changed_products=()
+          while IFS=$'\t' read -r product_name product_path; do
+            while IFS= read -r changed_file; do
+              if [[ "$changed_file" == "$product_path" || "$changed_file" == "$product_path/"* ]]; then
+                changed_products+=("$product_name")
+                break
+              fi
+            done <<< "$changed_files"
+          done < <(jq -r '.[] | [.name, .path] | @tsv' .github/release-products.json)
+
+          if [[ ${#changed_products[@]} -eq 0 ]]; then
+            matrix='{"include":[]}'
+          else
+            names_json="$(printf '%s\n' "${changed_products[@]}" | jq -R . | jq -s .)"
+            matrix="$(jq -c --argjson names "$names_json" '{include: [ .[] | select(.name as $name | $names | index($name)) ]}' .github/release-products.json)"
+          fi
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq '.include | length' <<< "$matrix")" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: discover-products
+    if: needs.discover-products.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-products.outputs.matrix).include }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: version
+        uses: AlexAtkinson/github-action-gitops-autover@0.13.0
+        with:
+          mono-repo-product-name: ${{ matrix.name }}
+          mono-repo-product-path: ${{ matrix.path }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Determine whether release is required
+        id: release-plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ steps.version.outputs.new-version }}"
+          previous_version="${{ steps.version.outputs.previous-version }}"
+          tag_name="${{ matrix.name }}_${version}"
+
+          if git rev-parse -q --verify "refs/tags/${tag_name}" >/dev/null; then
+            tag_exists=true
+          else
+            tag_exists=false
+          fi
+
+          if [[ "$version" != "$previous_version" || "$tag_exists" == false ]]; then
+            release_required=true
+          else
+            release_required=false
+          fi
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "release_required=$release_required" >> "$GITHUB_OUTPUT"
+
+      - name: Package source release asset
+        if: steps.release-plan.outputs.release_required == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/package-release.sh
+          scripts/package-release.sh \
+            "${{ matrix.name }}" \
+            "${{ matrix.path }}" \
+            "${{ steps.version.outputs.new-version }}" \
+            dist
+
+      - name: Publish GitHub release
+        if: steps.release-plan.outputs.release_required == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-plan.outputs.tag_name }}
+          name: ${{ matrix.name }} v${{ steps.version.outputs.new-version }}
+          generate_release_notes: true
+          files: |
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}.tar.gz
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-SHA256SUMS.txt
+      - name: Set up Go
+        if: steps.release-plan.outputs.release_required == 'true' && matrix.release.kind == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Build binary release assets
+        if: steps.release-plan.outputs.release_required == 'true' && matrix.release.kind == 'go'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          chmod +x scripts/package-release.sh
+
+          for target in linux/amd64 darwin/amd64 windows/amd64; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            binary_path="build/${{ matrix.release.binary }}-${goos}-${goarch}"
+            if [[ "$goos" == "windows" ]]; then
+              binary_path+='.exe'
+            fi
+
+            GOOS="$goos" GOARCH="$goarch" go build -o "$binary_path" '${{ matrix.release.entrypoint }}'
+
+            scripts/package-release.sh \
+              '${{ matrix.name }}' \
+              '${{ matrix.path }}' \
+              '${{ steps.version.outputs.new-version }}' \
+              dist \
+              '${{ matrix.release.binary }}' \
+              "$goos" \
+              "$goarch" \
+              "$binary_path"
+          done
+
+      - name: Upload binary assets to GitHub release
+        if: steps.release-plan.outputs.release_required == 'true' && matrix.release.kind == 'go'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-plan.outputs.tag_name }}
+          files: |
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-linux-amd64.tar.gz
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-linux-amd64-SHA256SUMS.txt
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-darwin-amd64.tar.gz
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-darwin-amd64-SHA256SUMS.txt
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-windows-amd64.tar.gz
+            dist/${{ matrix.name }}-${{ steps.version.outputs.new-version }}-windows-amd64-SHA256SUMS.txt
